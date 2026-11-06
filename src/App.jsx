@@ -460,10 +460,16 @@ export default function App() {
     }
   };
 
-  const handleDeleteShow = async (id) => {
+  const handleDeleteShow = async (id, targetDate = null) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa lịch chụp này?")) {
       try {
         await deleteDoc(doc(db, "shows", id));
+        const updatedShows = shows.filter(s => s.id !== id);
+        
+        // Nếu đang mở modal ngày, cập nhật lại danh sách ngày đó ngay lập tức
+        if (selectedCalendarDay && targetDate) {
+          openDayDetailByDate(targetDate, updatedShows);
+        }
       } catch (error) {
         console.error("Lỗi xóa show:", error);
       }
@@ -1480,9 +1486,14 @@ export default function App() {
                           </div>
                           <p className="text-xs text-[#a3978b] font-medium mt-0.5">📞 SĐT: {show.clientPhone || 'Chưa có'}</p>
                         </div>
-                        <button onClick={() => { setSelectedCalendarDay(null); handleOpenShowModal(show); }} className="text-xs font-semibold text-[#c9bbaE] hover:underline">
-                          Sửa Show
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => { setSelectedCalendarDay(null); handleOpenShowModal(show); }} className="text-xs font-semibold text-[#c9bbaE] hover:underline flex items-center gap-1">
+                            <Icons.Edit className="w-3.5 h-3.5" /> Sửa
+                          </button>
+                          <button onClick={() => handleDeleteShow(show.id, selectedCalendarDay.dateStr)} className="text-rose-300 hover:text-rose-400 p-1 bg-[#1b1815] border border-[#4d302e] rounded-md" title="Xóa show này">
+                            <Icons.Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
