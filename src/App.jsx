@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 
 const Icons = {
   Calendar: (props) => (
@@ -51,6 +51,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
   ),
+  Clock: (props) => (
+    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
   X: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -87,7 +92,7 @@ const INITIAL_SHOWS = [
     assignedStaff: {
       crewList: [
         { id: 'c-1', name: 'Hoàng Nam', role: 'Photo', pay: 1500000 },
-        { id: 'c-2', name: 'Thanh Hà', role: 'Quay phim', pay: 2000000 },
+        { id: 'c-2', name: 'Thanh Hà', role: 'Video', pay: 2000000 },
         { id: 'c-3', name: 'Linh Trần', role: 'Makeup', pay: 1200000 }
       ]
     },
@@ -95,30 +100,9 @@ const INITIAL_SHOWS = [
     depositAmount: 10000000,
     status: 'Đã cọc',
     expenses: [
-      { id: 'ex-1', title: 'Thuê xe đi lại', amount: 800000 }
+      { id: 'exp-1', title: 'Thuê xe di chuyển', amount: 800000 }
     ],
     notes: 'Yêu cầu tông màu ấm nhẹ nhàng.'
-  },
-  {
-    id: 'show-2',
-    clientName: 'Trần Gia Bảo',
-    clientPhone: '0912333444',
-    date: '2026-11-20',
-    startTime: '08:00',
-    endTime: '12:00',
-    packageType: 'Prewedding',
-    location: 'Phố Cổ Hội An',
-    assignedStaff: {
-      crewList: [
-        { id: 'c-4', name: 'Đức Anh', role: 'Photo', pay: 1800000 },
-        { id: 'c-5', name: 'Hương Trà', role: 'Làm tóc', pay: 1000000 }
-      ]
-    },
-    totalAmount: 18000000,
-    depositAmount: 18000000,
-    status: 'Hoàn tất',
-    expenses: [],
-    notes: 'Chụp phong cách vintage.'
   }
 ];
 
@@ -127,626 +111,335 @@ export default function App() {
   const [selectedMonth, setSelectedMonth] = useState(11);
   const [selectedYear, setSelectedYear] = useState(2026);
   const [shows, setShows] = useState(INITIAL_SHOWS);
-  const [staff, setStaff] = useState(INITIAL_STAFF);
-  const [searchQuery, setSearchQuery] = useState('');
-  
+  const [staffList, setStaffList] = useState(INITIAL_STAFF);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [editingShow, setEditingShow] = useState(null);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
+  const [confirmationModal, setConfirmationModal] = useState({ isOpen: false, type: 'client', show: null });
 
-  const [formData, setFormData] = useState({
-    clientName: '',
-    clientPhone: '',
-    date: new Date().toISOString().split('T')[0],
-    startTime: '08:00',
-    endTime: '12:00',
-    packageType: 'Thành hôn',
-    location: '',
-    totalAmount: '',
-    depositAmount: '',
-    status: 'Chờ cọc',
-    notes: '',
-    crewList: [],
-    expenses: []
+  const [showFormData, setShowFormData] = useState({
+    clientName: '', clientPhone: '', date: '', startTime: '', endTime: '',
+    packageType: 'Thành hôn', location: '', assignedStaff: { crewList: [] },
+    totalAmount: 0, depositAmount: 0, status: 'Chưa cọc', expenses: [], notes: ''
   });
+
+  const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
+  const [newExpenseTitle, setNewExpenseTitle] = useState('');
+  const [newExpenseAmount, setNewExpenseAmount] = useState('');
+
+  const getNormalizeCrewList = (assignedStaff) => {
+    if (!assignedStaff) return [];
+    if (assignedStaff.crewList && Array.isArray(assignedStaff.crewList)) return assignedStaff.crewList;
+    return [];
+  };
+
+  const calculateShowStaffPay = (assignedStaff) => {
+    const crewList = getNormalizeCrewList(assignedStaff);
+    return crewList.reduce((sum, item) => sum + Number(item.pay || 0), 0);
+  };
+
+  const calculateShowTotalExpenses = (show) => {
+    const staffPay = calculateShowStaffPay(show.assignedStaff);
+    const otherExpenses = (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    return staffPay + otherExpenses;
+  };
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val || 0).replace('₫', 'đ');
   };
 
-  const filteredShows = useMemo(() => {
-    return shows.filter((s) => {
-      const matchSearch = s.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          s.clientPhone.includes(searchQuery) ||
-                          s.location.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const showDate = new Date(s.date);
-      const matchMonth = (showDate.getMonth() + 1) === selectedMonth && showDate.getFullYear() === selectedYear;
+  const formatCurrencyCompact = (val) => {
+    if (!val) return '0 đ';
+    if (val >= 1000000) {
+      const formatted = (val / 1000000).toFixed(val % 1000000 === 0 ? 0 : 1);
+      return `${formatted} tr`;
+    }
+    return formatCurrency(val);
+  };
 
-      return matchSearch && (activeTab === 'shows' ? true : matchMonth);
+  const currentMonthShows = useMemo(() => {
+    return shows.filter((show) => {
+      if (!show.date) return false;
+      const d = new Date(show.date);
+      const matchMonth = (d.getMonth() + 1) === selectedMonth && d.getFullYear() === selectedYear;
+      const matchSearch = show.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          show.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          show.packageType.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStatus = statusFilter === 'All' || show.status === statusFilter;
+      return matchMonth && matchSearch && matchStatus;
     });
-  }, [shows, searchQuery, selectedMonth, selectedYear, activeTab]);
+  }, [shows, selectedMonth, selectedYear, searchTerm, statusFilter]);
 
-  const metrics = useMemo(() => {
+  const monthStats = useMemo(() => {
     let totalRevenue = 0;
-    let totalCollected = 0;
-    let totalPayroll = 0;
+    let totalDeposit = 0;
     let totalExpenses = 0;
+    let completedShowsCount = 0;
 
-    shows.forEach((s) => {
-      const showDate = new Date(s.date);
-      if ((showDate.getMonth() + 1) === selectedMonth && showDate.getFullYear() === selectedYear) {
-        totalRevenue += Number(s.totalAmount || 0);
-        totalCollected += Number(s.depositAmount || 0);
-
-        if (s.assignedStaff?.crewList) {
-          s.assignedStaff.crewList.forEach((c) => totalPayroll += Number(c.pay || 0));
-        }
-
-        if (s.expenses) {
-          s.expenses.forEach((e) => totalExpenses += Number(e.amount || 0));
-        }
-      }
+    currentMonthShows.forEach((show) => {
+      totalRevenue += Number(show.totalAmount || 0);
+      totalDeposit += Number(show.depositAmount || 0);
+      totalExpenses += calculateShowTotalExpenses(show);
+      if (show.status === 'Đã thanh toán') completedShowsCount++;
     });
 
-    const netProfit = totalRevenue - totalPayroll - totalExpenses;
+    const netProfit = totalRevenue - totalExpenses;
+    const remainingToCollect = totalRevenue - totalDeposit;
 
-    return { totalRevenue, totalCollected, totalPayroll, totalExpenses, netProfit };
-  }, [shows, selectedMonth, selectedYear]);
+    return { totalRevenue, totalDeposit, remainingToCollect, totalExpenses, netProfit, count: currentMonthShows.length, completedShowsCount };
+  }, [currentMonthShows]);
 
   const calendarDays = useMemo(() => {
+    const firstDayOfMonth = new Date(selectedYear, selectedMonth - 1, 1);
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
-    const firstDayOfWeek = (new Date(selectedYear, selectedMonth - 1, 1).getDay() + 6) % 7;
+    let startDayOfWeek = firstDayOfMonth.getDay() - 1;
+    if (startDayOfWeek === -1) startDayOfWeek = 6;
+
     const daysArr = [];
+    const totalCells = Math.ceil((startDayOfWeek + daysInMonth) / 7) * 7;
 
-    for (let i = 0; i < firstDayOfWeek; i++) {
-      daysArr.push({ dayNum: '', dateStr: '', isCurrentMonth: false, shows: [] });
+    for (let i = 0; i < totalCells; i++) {
+      if (i < startDayOfWeek) {
+        const prevMonthLastDay = new Date(selectedYear, selectedMonth - 1, 0).getDate();
+        const prevDayNum = prevMonthLastDay - (startDayOfWeek - i - 1);
+        const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+        const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+        const dateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevDayNum).padStart(2, '0')}`;
+        const dayShows = shows.filter((s) => s.date === dateStr);
+        daysArr.push({ dayNum: prevDayNum, dateStr, isCurrentMonth: false, shows: dayShows });
+      } else if (i >= startDayOfWeek + daysInMonth) {
+        const nextDayNum = i - (startDayOfWeek + daysInMonth) + 1;
+        const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
+        const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
+        const dateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDayNum).padStart(2, '0')}`;
+        const dayShows = shows.filter((s) => s.date === dateStr);
+        daysArr.push({ dayNum: nextDayNum, dateStr, isCurrentMonth: false, shows: dayShows });
+      } else {
+        const dayNum = i - startDayOfWeek + 1;
+        const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+        const dayShows = shows.filter((s) => s.date === dateStr);
+        daysArr.push({ dayNum, dateStr, isCurrentMonth: true, shows: dayShows });
+      }
     }
-
-    for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
-      const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-      const dayShows = shows.filter((s) => s.date === dateStr);
-      daysArr.push({ dayNum, dateStr, isCurrentMonth: true, shows: dayShows });
-    }
-
     return daysArr;
   }, [selectedMonth, selectedYear, shows]);
 
-  const handleOpenAddShow = () => {
-    setEditingShow(null);
-    setFormData({
-      clientName: '',
-      clientPhone: '',
-      date: new Date().toISOString().split('T')[0],
-      startTime: '08:00',
-      endTime: '12:00',
-      packageType: 'Thành hôn',
-      location: '',
-      totalAmount: '',
-      depositAmount: '',
-      status: 'Chờ cọc',
-      notes: '',
-      crewList: [],
-      expenses: []
-    });
-    setIsShowModalOpen(true);
-  };
-
-  const handleOpenEditShow = (show) => {
-    setEditingShow(show);
-    setFormData({
-      ...show,
-      crewList: show.assignedStaff?.crewList || [],
-      expenses: show.expenses || []
-    });
+  const handleOpenShowModal = (showToEdit = null, defaultDate = null) => {
+    if (showToEdit) {
+      setEditingShow(showToEdit);
+      setShowFormData({
+        clientName: showToEdit.clientName || '',
+        clientPhone: showToEdit.clientPhone || '',
+        date: showToEdit.date || '',
+        startTime: showToEdit.startTime || '',
+        endTime: showToEdit.endTime || '',
+        packageType: showToEdit.packageType || '',
+        location: showToEdit.location || '',
+        assignedStaff: { crewList: getNormalizeCrewList(showToEdit.assignedStaff) },
+        totalAmount: showToEdit.totalAmount || 0,
+        depositAmount: showToEdit.depositAmount || 0,
+        status: showToEdit.status || 'Chưa cọc',
+        expenses: showToEdit.expenses || [],
+        notes: showToEdit.notes || ''
+      });
+    } else {
+      setEditingShow(null);
+      setShowFormData({
+        clientName: '', clientPhone: '', date: defaultDate || new Date().toISOString().split('T')[0],
+        startTime: '08:00', endTime: '12:00', packageType: 'Thành hôn', location: '',
+        assignedStaff: { crewList: [] }, totalAmount: 0, depositAmount: 0, status: 'Chưa cọc', expenses: [], notes: ''
+      });
+    }
     setIsShowModalOpen(true);
   };
 
   const handleSaveShow = (e) => {
     e.preventDefault();
-    const newShowObj = {
-      id: editingShow ? editingShow.id : `show-${Date.now()}`,
-      ...formData,
-      totalAmount: Number(formData.totalAmount),
-      depositAmount: Number(formData.depositAmount),
-      assignedStaff: { crewList: formData.crewList }
-    };
-
     if (editingShow) {
-      setShows(shows.map(s => s.id === editingShow.id ? newShowObj : s));
+      setShows(shows.map((s) => s.id === editingShow.id ? { ...showFormData, id: editingShow.id } : s));
     } else {
-      setShows([newShowObj, ...shows]);
+      setShows([{ ...showFormData, id: 'show-' + Date.now() }, ...shows]);
     }
     setIsShowModalOpen(false);
   };
 
   const handleDeleteShow = (id) => {
-    setShows(shows.filter(s => s.id !== id));
-  };
-
-  const addCrewMember = () => {
-    setFormData({
-      ...formData,
-      crewList: [...formData.crewList, { id: `c-${Date.now()}`, name: staff[0]?.name || '', role: 'Photo', pay: 1000000 }]
-    });
-  };
-
-  const removeCrewMember = (index) => {
-    const updated = [...formData.crewList];
-    updated.splice(index, 1);
-    setFormData({ ...formData, crewList: updated });
+    setShows(shows.filter((s) => s.id !== id));
   };
 
   return (
-    <div className="min-h-screen bg-[#141210] text-[#f3ece4] font-sans pb-12">
-      <header className="bg-[#1b1815] border-b border-[#2c251e] sticky top-0 z-30 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#26211c] p-2 rounded-xl border border-[#3c342c]">
-              <Icons.Camera className="w-6 h-6 text-[#86efac]" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-[#f9f6f0]">OUR JUNE STUDIO</h1>
-              <p className="text-[11px] text-[#a3978b]">Hệ Thống Quản Lý Lịch Chụp & Doanh Thu Pro</p>
-            </div>
+    <div className="min-h-screen bg-[#141210] text-[#f3ece4] font-sans pb-20">
+      <header className="bg-[#1b1815] border-b border-[#2c251e] sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 py-2.5 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-base text-[#f9f6f0]">OUR JUNE</span>
+            <span className="text-[10px] bg-[#26211c] text-[#c9bbaE] font-semibold px-2 py-0.5 rounded-md border border-[#3c342c]">STUDIO</span>
           </div>
-
-          <nav className="flex bg-[#141210] p-1 rounded-xl border border-[#2c251e] text-xs font-medium">
-            <button
-              onClick={() => setActiveTab('calendar')}
-              className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition ${
-                activeTab === 'calendar' ? 'bg-[#26211c] text-[#f9f6f0] border border-[#3c342c] font-bold' : 'text-[#a3978b] hover:text-[#f3ece4]'
-              }`}
-            >
-              <Icons.Calendar className="w-4 h-4 text-[#c9bbaE]" /> Lịch Chụp
+          <nav className="flex items-center bg-[#141210] p-1 rounded-xl text-xs font-medium border border-[#2c251e]">
+            <button onClick={() => setActiveTab('calendar')} className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 ${activeTab === 'calendar' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b]'}`}>
+              <Icons.Calendar className="w-3.5 h-3.5" /> Calendar
             </button>
-            <button
-              onClick={() => setActiveTab('shows')}
-              className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition ${
-                activeTab === 'shows' ? 'bg-[#26211c] text-[#f9f6f0] border border-[#3c342c] font-bold' : 'text-[#a3978b] hover:text-[#f3ece4]'
-              }`}
-            >
-              <Icons.Camera className="w-4 h-4 text-[#c9bbaE]" /> Danh Sách Show ({shows.length})
+            <button onClick={() => setActiveTab('list')} className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 ${activeTab === 'list' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b]'}`}>
+              <Icons.Camera className="w-3.5 h-3.5" /> Danh Sách
             </button>
-            <button
-              onClick={() => setActiveTab('finance')}
-              className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition ${
-                activeTab === 'finance' ? 'bg-[#26211c] text-[#f9f6f0] border border-[#3c342c] font-bold' : 'text-[#a3978b] hover:text-[#f3ece4]'
-              }`}
-            >
-              <Icons.TrendingUp className="w-4 h-4 text-[#c9bbaE]" /> Doanh Thu
-            </button>
-            <button
-              onClick={() => setActiveTab('staff')}
-              className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition ${
-                activeTab === 'staff' ? 'bg-[#26211c] text-[#f9f6f0] border border-[#3c342c] font-bold' : 'text-[#a3978b] hover:text-[#f3ece4]'
-              }`}
-            >
-              <Icons.Users className="w-4 h-4 text-[#c9bbaE]" /> Ekip ({staff.length})
+            <button onClick={() => setActiveTab('staff')} className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 ${activeTab === 'staff' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b]'}`}>
+              <Icons.Users className="w-3.5 h-3.5" /> Ekip
             </button>
           </nav>
-
-          <button
-            onClick={handleOpenAddShow}
-            className="bg-[#26211c] hover:bg-[#332b24] text-[#f9f6f0] border border-[#3c342c] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg transition"
-          >
-            <Icons.Plus className="w-4 h-4 text-[#86efac]" /> + Thêm Show Mới
-          </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 mt-6 space-y-6">
-        <div className="bg-[#1b1815] p-4 rounded-2xl border border-[#2c251e] flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[#a3978b] font-semibold">Chọn Tháng:</span>
-            <div className="flex items-center bg-[#141210] border border-[#2c251e] rounded-xl p-1 text-xs">
-              <button
-                onClick={() => {
-                  if (selectedMonth === 1) { setSelectedMonth(12); setSelectedYear(selectedYear - 1); }
-                  else { setSelectedMonth(selectedMonth - 1); }
-                }}
-                className="p-1.5 hover:bg-[#26211c] rounded-lg transition"
-              >
-                <Icons.ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="px-4 font-bold text-[#f9f6f0]">Tháng {selectedMonth} / {selectedYear}</span>
-              <button
-                onClick={() => {
-                  if (selectedMonth === 12) { setSelectedMonth(1); setSelectedYear(selectedYear + 1); }
-                  else { setSelectedMonth(selectedMonth + 1); }
-                }}
-                className="p-1.5 hover:bg-[#26211c] rounded-lg transition"
-              >
-                <Icons.ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+      <main className="max-w-7xl mx-auto px-4 pt-4 space-y-4">
+        <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-3 flex justify-between items-center">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-semibold text-[#a3978b]">THỜI GIAN:</span>
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-[#24201c] border border-[#3c342c] rounded-lg px-2.5 py-1.5 font-semibold text-[#f3ece4]">
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (<option key={m} value={m}>Tháng {m}</option>))}
+            </select>
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-[#24201c] border border-[#3c342c] rounded-lg px-2.5 py-1.5 font-semibold text-[#f3ece4]">
+              {Array.from({ length: 10 }, (_, i) => 2024 + i).map((y) => (<option key={y} value={y}>Năm {y}</option>))}
+            </select>
           </div>
-
-          <div className="relative w-full md:w-64">
-            <Icons.Search className="w-4 h-4 absolute left-3 top-2.5 text-[#a3978b]" />
-            <input
-              type="text"
-              placeholder="Tìm khách hàng, sđt, địa điểm..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#141210] border border-[#2c251e] rounded-xl pl-9 pr-3 py-2 text-xs text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-            />
-          </div>
+          <button onClick={() => handleOpenShowModal()} className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:bg-[#332b24]">
+            <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Tạo Lịch Chụp Mới
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-[#1b1815] p-4 rounded-2xl border border-[#2c251e] space-y-1 shadow-md">
-            <span className="text-[11px] text-[#a3978b] font-semibold flex items-center gap-1.5">
-              <Icons.DollarSign className="w-3.5 h-3.5 text-[#86efac]" /> Tổng Doanh Thu Show
-            </span>
-            <p className="text-lg font-bold text-[#f9f6f0]">{formatCurrency(metrics.totalRevenue)}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] space-y-1">
+            <span className="text-[11px] font-semibold text-[#a3978b]">TỔNG SHOW T{selectedMonth}</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xl font-bold text-[#f9f6f0]">{monthStats.count}</span>
+              <span className="text-[10px] font-semibold bg-[#26211c] text-[#86efac] px-1.5 py-0.5 rounded border border-[#2e4d38]">{monthStats.completedShowsCount} xong</span>
+            </div>
           </div>
-
-          <div className="bg-[#1b1815] p-4 rounded-2xl border border-[#2c251e] space-y-1 shadow-md">
-            <span className="text-[11px] text-[#a3978b] font-semibold flex items-center gap-1.5">
-              <Icons.TrendingUp className="w-3.5 h-3.5 text-[#60a5fa]" /> Thực Thu (Đã Cọc)
-            </span>
-            <p className="text-lg font-bold text-[#60a5fa]">{formatCurrency(metrics.totalCollected)}</p>
+          <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] space-y-1">
+            <span className="text-[11px] font-semibold text-[#a3978b]">DOANH THU HĐ</span>
+            <span className="text-lg font-bold text-[#f9f6f0] block">{formatCurrencyCompact(monthStats.totalRevenue)}</span>
           </div>
-
-          <div className="bg-[#1b1815] p-4 rounded-2xl border border-[#2c251e] space-y-1 shadow-md">
-            <span className="text-[11px] text-[#a3978b] font-semibold flex items-center gap-1.5">
-              <Icons.Users className="w-3.5 h-3.5 text-[#f87171]" /> Lương Ekip / NNC
-            </span>
-            <p className="text-lg font-bold text-[#f87171]">{formatCurrency(metrics.totalPayroll)}</p>
+          <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] space-y-1">
+            <span className="text-[11px] font-semibold text-rose-300">CHI PHÍ SHOW</span>
+            <span className="text-lg font-bold text-rose-300 block">{formatCurrencyCompact(monthStats.totalExpenses)}</span>
           </div>
-
-          <div className="bg-[#1b1815] p-4 rounded-2xl border border-[#2c251e] space-y-1 shadow-md">
-            <span className="text-[11px] text-[#a3978b] font-semibold flex items-center gap-1.5">
-              <Icons.DollarSign className="w-3.5 h-3.5 text-[#facc15]" /> Lợi Nhuận Ròng
-            </span>
-            <p className="text-lg font-bold text-[#86efac]">{formatCurrency(metrics.netProfit)}</p>
+          <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] space-y-1">
+            <span className="text-[11px] font-semibold text-[#86efac]">LỢI NHUẬN RÒNG</span>
+            <span className="text-lg font-bold text-[#86efac] block">{formatCurrencyCompact(monthStats.netProfit)}</span>
           </div>
         </div>
 
         {activeTab === 'calendar' && (
-          <div className="bg-[#1b1815] p-5 rounded-2xl border border-[#2c251e] shadow-xl space-y-4">
-            <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
-              <h2 className="text-base font-bold text-[#f9f6f0]">Lịch Chụp Tháng {selectedMonth}/{selectedYear}</h2>
-              <span className="text-xs text-[#a3978b]">Bấm vào ngày bất kỳ để xem lịch chi tiết</span>
-            </div>
-
-            <div className="grid grid-cols-7 gap-2 text-center font-bold text-xs text-[#a3978b] pb-1">
-              <div>Thứ 2</div><div>Thứ 3</div><div>Thứ 4</div><div>Thứ 5</div><div>Thứ 6</div><div>Thứ 7</div><div>Chủ Nhật</div>
-            </div>
-
-            <div className="grid grid-cols-7 gap-2">
-              {calendarDays.map((cell, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => cell.dateStr && setSelectedCalendarDay(cell)}
-                  className={`min-h-[90px] sm:min-h-[110px] p-2 rounded-xl border flex flex-col justify-between transition cursor-pointer ${
-                    cell.isCurrentMonth
-                      ? cell.shows.length > 0
-                        ? 'bg-[#24201c] border-[#3c342c] hover:border-[#86efac]'
-                        : 'bg-[#181512] border-[#25201a] hover:border-[#3c342c]'
-                      : 'bg-transparent border-transparent opacity-20'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-[#f3ece4]">{cell.dayNum}</span>
-                    {cell.shows.length > 0 && (
-                      <span className="bg-[#26211c] text-[#86efac] text-[10px] px-1.5 py-0.5 rounded font-bold border border-[#2e4d38]">
-                        {cell.shows.length} show
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-1 mt-1 overflow-hidden">
-                    {cell.shows.map((s) => (
-                      <div key={s.id} className="bg-[#33463a] text-[#f9f6f0] p-1 rounded text-[10px] font-semibold truncate border border-[#2e4d38]">
-                        {s.clientName}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'shows' && (
-          <div className="space-y-4">
-            {filteredShows.length === 0 ? (
-              <div className="bg-[#1b1815] p-8 rounded-2xl border border-[#2c251e] text-center text-[#a3978b] text-xs">
-                Không tìm thấy show chụp nào phù hợp.
+          <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1">
+                <button onClick={() => { if (selectedMonth === 1) { setSelectedMonth(12); setSelectedYear(selectedYear - 1); } else { setSelectedMonth(selectedMonth - 1); } }} className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]">
+                  <Icons.ChevronLeft className="w-4 h-4" />
+                </button>
+                <h2 className="text-sm font-bold text-[#f9f6f0]">Tháng {selectedMonth} / {selectedYear}</h2>
+                <button onClick={() => { if (selectedMonth === 12) { setSelectedMonth(1); setSelectedYear(selectedYear + 1); } else { setSelectedMonth(selectedMonth + 1); } }} className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]">
+                  <Icons.ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-            ) : (
-              filteredShows.map((show) => (
-                <div key={show.id} className="bg-[#1b1815] p-5 rounded-2xl border border-[#2c251e] shadow-md space-y-3">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-[#2c251e] pb-3">
-                    <div>
-                      <span className="text-xs font-bold text-[#a3978b] uppercase tracking-wider">{show.packageType}</span>
-                      <h3 className="text-base font-bold text-[#f9f6f0]">{show.clientName} - <span className="text-xs font-normal text-[#a3978b]">{show.clientPhone}</span></h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                        show.status === 'Hoàn tất' ? 'bg-[#1c2e24] text-[#86efac] border-[#2e4d38]' : 'bg-[#2a241b] text-[#facc15] border-[#4d3e23]'
-                      }`}>
-                        ● {show.status}
-                      </span>
-                      <button onClick={() => handleOpenEditShow(show)} className="p-1.5 bg-[#26211c] border border-[#3c342c] rounded-lg text-[#a3978b] hover:text-[#f3ece4]">
-                        <Icons.Edit className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDeleteShow(show.id)} className="p-1.5 bg-[#26211c] border border-[#3c342c] rounded-lg text-[#f87171] hover:bg-[#3d2424]">
-                        <Icons.Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-3 text-xs text-[#a3978b]">
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#703f47]"></span> Makeup</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#33463a]"></span> Show Chụp Hình</span>
+              </div>
+            </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-[#a3978b]">
-                    <div>
-                      <p>📅 Ngày chụp: <span className="font-bold text-[#f3ece4]">{show.date}</span> ({show.startTime} - {show.endTime})</p>
-                      <p>📍 Địa điểm: <span className="font-bold text-[#f3ece4]">{show.location}</span></p>
-                    </div>
+            <div className="grid grid-cols-7 border-b border-[#2c251e] text-center pb-2 text-xs font-semibold text-[#a3978b]">
+              <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
+            </div>
 
-                    <div>
-                      <p>💰 Tổng hợp đồng: <span className="font-bold text-[#f9f6f0]">{formatCurrency(show.totalAmount)}</span></p>
-                      <p>💳 Đã đặt cọc: <span className="font-bold text-[#60a5fa]">{formatCurrency(show.depositAmount)}</span></p>
-                    </div>
-
-                    <div>
-                      <p className="font-bold text-[#f3ece4] mb-1">👥 Ekip Phụ Trách ({show.assignedStaff?.crewList?.length || 0}):</p>
-                      <div className="flex flex-wrap gap-1">
-                        {show.assignedStaff?.crewList?.map((c, i) => (
-                          <span key={i} className="bg-[#24201c] px-2 py-0.5 rounded text-[10px] text-[#f3ece4] border border-[#3c342c]">
-                            {c.name} ({c.role})
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {activeTab === 'finance' && (
-          <div className="bg-[#1b1815] p-6 rounded-2xl border border-[#2c251e] space-y-6 shadow-xl">
-            <h2 className="text-base font-bold text-[#f9f6f0]">Báo Cáo Tài Chính Chi Tiết Tháng {selectedMonth}/{selectedYear}</h2>
-            <div className="space-y-3">
-              {filteredShows.map((show) => (
-                <div key={show.id} className="bg-[#141210] p-4 rounded-xl border border-[#2c251e] flex justify-between items-center text-xs">
-                  <div>
-                    <p className="font-bold text-[#f9f6f0]">{show.clientName} ({show.packageType})</p>
-                    <p className="text-[#a3978b]">{show.date}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-[#86efac]">+ {formatCurrency(show.totalAmount)}</p>
-                    <p className="text-[10px] text-[#a3978b]">Cọc: {formatCurrency(show.depositAmount)}</p>
+            <div className="grid grid-cols-7 border-l border-t border-[#2c251e]">
+              {calendarDays.map((cell, idx) => (
+                <div key={idx} onClick={() => cell.dateStr && setSelectedCalendarDay(cell)} className={`min-h-[100px] p-1 border-r border-b border-[#2c251e] flex flex-col justify-start cursor-pointer hover:bg-[#26211c]/50 ${cell.isCurrentMonth ? 'bg-[#1b1815]' : 'bg-[#141210]/40'}`}>
+                  <span className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-medium mb-1 ${cell.isCurrentMonth ? 'text-[#f3ece4]' : 'text-[#6b625b]'}`}>{cell.dayNum}</span>
+                  <div className="space-y-1">
+                    {cell.shows.map((show) => {
+                      const isMakeup = show.packageType === 'Makeup';
+                      return (
+                        <div key={show.id} className={`px-1.5 py-1 rounded text-[10px] ${isMakeup ? 'bg-[#703f47] text-[#f9f6f0]' : 'bg-[#33463a] text-[#f9f6f0]'}`}>
+                          <div className="font-bold uppercase">{show.packageType}</div>
+                          <div>{show.clientName}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'list' && (
+          <div className="space-y-3">
+            {currentMonthShows.map((show) => (
+              <div key={show.id} className="bg-[#1b1815] p-4 rounded-xl border border-[#2c251e] space-y-2">
+                <div className="flex justify-between items-center border-b border-[#2c251e] pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-xs bg-[#24201c] border border-[#3c342c] text-[#f9f6f0] px-2 py-0.5 rounded">{show.packageType}</span>
+                    <h3 className="font-bold text-sm text-[#f9f6f0]">{show.clientName}</h3>
+                  </div>
+                  <button onClick={() => handleDeleteShow(show.id)} className="text-rose-300 text-xs">Xóa</button>
+                </div>
+                <div className="text-xs text-[#a3978b] flex justify-between">
+                  <span>📅 {show.date} | 📍 {show.location || 'Chưa cập nhật'}</span>
+                  <span className="font-bold text-[#86efac]">{formatCurrency(show.totalAmount)}</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
         {activeTab === 'staff' && (
-          <div className="bg-[#1b1815] p-6 rounded-2xl border border-[#2c251e] space-y-4 shadow-xl">
-            <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
-              <h2 className="text-base font-bold text-[#f9f6f0]">Danh Sách Ekip & Nhân Sự Studio</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {staff.map((s) => (
-                <div key={s.id} className="bg-[#141210] p-4 rounded-xl border border-[#2c251e] space-y-1">
-                  <p className="font-bold text-sm text-[#f9f6f0]">{s.name}</p>
-                  <p className="text-xs text-[#a3978b]">Chức danh: <span className="text-[#86efac] font-semibold">{s.role}</span></p>
-                  <p className="text-xs text-[#a3978b]">SĐT: {s.phone}</p>
+          <div className="bg-[#1b1815] p-4 rounded-xl border border-[#2c251e] space-y-3">
+            <h2 className="text-sm font-bold text-[#f9f6f0]">Danh Sách Nhân Sự Ekip</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {staffList.map((st) => (
+                <div key={st.id} className="bg-[#24201c] p-3 rounded-lg border border-[#3c342c] text-xs space-y-1">
+                  <p className="font-bold text-[#f9f6f0]">{st.name}</p>
+                  <p className="text-[#a3978b]">Chức danh: {st.role}</p>
                 </div>
               ))}
             </div>
           </div>
         )}
-      </div>
+      </main>
 
       {isShowModalOpen && (
-        <div className="fixed inset-0 bg-[#141210]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#1b1815] p-6 rounded-2xl border border-[#3c342c] w-full max-w-2xl space-y-4 shadow-2xl my-8">
-            <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
-              <h3 className="font-bold text-base text-[#f9f6f0]">
-                {editingShow ? 'Chỉnh Sửa Thông Tin Show' : 'Thêm Show Chụp Mới'}
-              </h3>
-              <button onClick={() => setIsShowModalOpen(false)} className="text-[#a3978b] hover:text-[#f3ece4]">
-                <Icons.X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3">
+          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] w-full max-w-md p-4 space-y-3 text-xs">
+            <div className="flex justify-between items-center border-b border-[#2c251e] pb-2">
+              <h3 className="font-bold text-sm text-[#f9f6f0]">Tạo Lịch Chụp Mới</h3>
+              <button onClick={() => setIsShowModalOpen(false)}><Icons.X className="w-4 h-4 text-[#a3978b]" /></button>
             </div>
-
-            <form onSubmit={handleSaveShow} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Tên Khách Hàng / Cô Dâu Chú Rể</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.clientName}
-                    onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Số Điện Thoại</label>
-                  <input
-                    type="text"
-                    value={formData.clientPhone}
-                    onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Ngày Chụp</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Giờ Bắt Đầu</label>
-                  <input
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Gói Dịch Vụ</label>
-                  <select
-                    value={formData.packageType}
-                    onChange={(e) => setFormData({ ...formData, packageType: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  >
-                    {PACKAGES.map((pkg) => (
-                      <option key={pkg} value={pkg}>{pkg}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
+            <form onSubmit={handleSaveShow} className="space-y-3">
               <div>
-                <label className="block text-[#a3978b] mb-1 font-semibold">Địa Điểm Chụp</label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: InterContinental Danang..."
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                />
+                <label className="block text-[#c9bbaE] mb-1">Tên Khách Hàng</label>
+                <input type="text" required value={showFormData.clientName} onChange={(e) => setShowFormData({ ...showFormData, clientName: e.target.value })} className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded text-[#f9f6f0]" />
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Tổng Hợp Đồng (VNĐ)</label>
-                  <input
-                    type="number"
-                    value={formData.totalAmount}
-                    onChange={(e) => setFormData({ ...formData, totalAmount: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Đã Cọc (VNĐ)</label>
-                  <input
-                    type="number"
-                    value={formData.depositAmount}
-                    onChange={(e) => setFormData({ ...formData, depositAmount: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#a3978b] mb-1 font-semibold">Trạng Thái Show</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full bg-[#141210] border border-[#2c251e] rounded-xl p-2.5 text-[#f3ece4] focus:outline-none focus:border-[#3c342c]"
-                  >
-                    <option value="Chờ cọc">Chờ cọc</option>
-                    <option value="Đã cọc">Đã cọc</option>
-                    <option value="Hoàn tất">Hoàn tất</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[#c9bbaE] mb-1">Ngày Chụp</label>
+                <input type="date" required value={showFormData.date} onChange={(e) => setShowFormData({ ...showFormData, date: e.target.value })} className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded text-[#f9f6f0]" />
               </div>
-
-              <div className="border-t border-[#2c251e] pt-3 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-[#f9f6f0]">Phân Công Ekip Thực Hiện</span>
-                  <button type="button" onClick={addCrewMember} className="text-[#86efac] font-bold text-[11px] hover:underline">
-                    + Thêm Nhân Sự
-                  </button>
-                </div>
-                {formData.crewList.map((crew, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <select
-                      value={crew.name}
-                      onChange={(e) => {
-                        const updated = [...formData.crewList];
-                        updated[idx].name = e.target.value;
-                        setFormData({ ...formData, crewList: updated });
-                      }}
-                      className="flex-1 bg-[#141210] border border-[#2c251e] rounded-xl p-2 text-[#f3ece4]"
-                    >
-                      {staff.map((s) => (
-                        <option key={s.id} value={s.name}>{s.name} ({s.role})</option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      placeholder="Lương/Công"
-                      value={crew.pay}
-                      onChange={(e) => {
-                        const updated = [...formData.crewList];
-                        updated[idx].pay = Number(e.target.value);
-                        setFormData({ ...formData, crewList: updated });
-                      }}
-                      className="w-28 bg-[#141210] border border-[#2c251e] rounded-xl p-2 text-[#f3ece4]"
-                    />
-                    <button type="button" onClick={() => removeCrewMember(idx)} className="text-[#f87171] p-1">
-                      <Icons.X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+              <div>
+                <label className="block text-[#c9bbaE] mb-1">Gói Dịch Vụ</label>
+                <select value={showFormData.packageType} onChange={(e) => setShowFormData({ ...showFormData, packageType: e.target.value })} className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded text-[#f9f6f0]">
+                  {PACKAGES.map((pkg) => (<option key={pkg} value={pkg}>{pkg}</option>))}
+                </select>
               </div>
-
-              <div className="flex justify-end gap-2 border-t border-[#2c251e] pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsShowModalOpen(false)}
-                  className="px-4 py-2 bg-[#24201c] text-[#a3978b] rounded-xl font-bold"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#26211c] text-[#f9f6f0] border border-[#3c342c] rounded-xl font-bold shadow-md hover:bg-[#332b24]"
-                >
-                  Lưu Show
-                </button>
+              <div>
+                <label className="block text-[#c9bbaE] mb-1">Giá Hợp Đồng (VNĐ)</label>
+                <input type="number" value={showFormData.totalAmount} onChange={(e) => setShowFormData({ ...showFormData, totalAmount: Number(e.target.value) })} className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded text-[#f9f6f0]" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#2c251e]">
+                <button type="button" onClick={() => setIsShowModalOpen(false)} className="px-3 py-1 border border-[#3c342c] rounded text-[#c9bbaE]">Hủy</button>
+                <button type="submit" className="px-3 py-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded font-bold">Lưu Show</button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {selectedCalendarDay && (
-        <div className="fixed inset-0 bg-[#141210]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-[#1b1815] p-5 rounded-2xl border border-[#3c342c] w-full max-w-md space-y-4">
-            <div className="flex justify-between items-center border-b border-[#2c251e] pb-2">
-              <h3 className="font-bold text-sm text-[#f9f6f0]">Show Ngày {selectedCalendarDay.dateStr}</h3>
-              <button onClick={() => setSelectedCalendarDay(null)} className="text-[#a3978b]">
-                <Icons.X className="w-5 h-5" />
-              </button>
-            </div>
-            {selectedCalendarDay.shows.length === 0 ? (
-              <p className="text-xs text-[#a3978b] text-center py-4">Trống lịch chụp trong ngày này.</p>
-            ) : (
-              selectedCalendarDay.shows.map((s) => (
-                <div key={s.id} className="bg-[#24201c] p-3 rounded-xl border border-[#3c342c] space-y-1 text-xs">
-                  <div className="flex justify-between font-bold text-[#f9f6f0]">
-                    <span>{s.clientName}</span>
-                    <span className="text-[#86efac]">{s.packageType}</span>
-                  </div>
-                  <p className="text-[#a3978b]">⏰ {s.startTime} - {s.endTime}</p>
-                  <p className="text-[#a3978b]">📍 {s.location}</p>
-                  <p className="text-[#86efac] font-bold pt-1">Tổng tiền: {formatCurrency(s.totalAmount)}</p>
-                </div>
-              ))
-            )}
-            <button
-              onClick={() => setSelectedCalendarDay(null)}
-              className="w-full bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] py-2 rounded-xl text-xs font-bold"
-            >
-              Đóng
-            </button>
           </div>
         </div>
       )}
