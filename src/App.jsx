@@ -416,8 +416,31 @@ export default function App() {
     setIsShowModalOpen(true);
   };
 
+  // Hàm hỗ trợ mở lại bảng chi tiết ngày trên lịch
+  const openDayDetailByDate = (targetDateStr) => {
+    if (!targetDateStr) return;
+    const dayShows = shows
+      .filter((s) => s.date === targetDateStr)
+      .sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
+    
+    // Cập nhật tháng/năm hiển thị trên lịch nếu ngày thuộc tháng khác
+    const dObj = new Date(targetDateStr);
+    if (!isNaN(dObj.getTime())) {
+      setSelectedMonth(dObj.getMonth() + 1);
+      setSelectedYear(dObj.getFullYear());
+    }
+
+    setSelectedCalendarDay({
+      dateStr: targetDateStr,
+      shows: dayShows,
+      singleShowMode: dayShows.length === 1
+    });
+    setActiveTab('calendar');
+  };
+
   const handleSaveShow = async (e) => {
     e.preventDefault();
+    const targetDate = showFormData.date;
     try {
       if (editingShow) {
         const showRef = doc(db, "shows", editingShow.id);
@@ -426,8 +449,9 @@ export default function App() {
         await addDoc(collection(db, "shows"), showFormData);
       }
       setIsShowModalOpen(false);
-      // Chuyển về tab Danh sách sau khi lưu xong
-      setActiveTab('list');
+      
+      // Chuyển về tab Calendar và mở danh sách show của ngày đó
+      openDayDetailByDate(targetDate);
     } catch (error) {
       console.error("Lỗi lưu show:", error);
       alert("Có lỗi khi lưu dữ liệu lên Firebase!");
@@ -1325,7 +1349,15 @@ export default function App() {
               </div>
 
               <div className="flex justify-end gap-2 pt-2.5 border-t border-[#2c251e]">
-                <button type="button" onClick={() => { setIsShowModalOpen(false); setActiveTab('list'); }} className="px-3 py-1 border border-[#3c342c] rounded text-[#c9bbaE]">
+                <button 
+                  type="button" 
+                  onClick={() => { 
+                    const targetDate = showFormData.date;
+                    setIsShowModalOpen(false); 
+                    if (targetDate) openDayDetailByDate(targetDate);
+                  }} 
+                  className="px-3 py-1 border border-[#3c342c] rounded text-[#c9bbaE]"
+                >
                   Hủy
                 </button>
                 <button type="submit" className="px-3 py-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded font-semibold">
