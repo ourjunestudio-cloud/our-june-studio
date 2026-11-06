@@ -880,7 +880,7 @@ export default function App() {
                             {getNormalizeCrewList(show.assignedStaff).map((member, i) => (
                               <div key={member.id || i} className="flex justify-between">
                                 <span>{member.role}: {member.name}</span>
-                                <span className="font-semibold text-rose-300">{formatCurrencyCompact(member.pay)}</span>
+                                <span className="font-semibold text-rose-300">{formatCurrency(member.pay)}</span>
                               </div>
                             ))}
                             {getNormalizeCrewList(show.assignedStaff).length === 0 && (
