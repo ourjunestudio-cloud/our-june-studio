@@ -1666,6 +1666,10 @@ export default function App() {
                       <span className="text-[#a3978b]">Tên Khách Hàng:</span>
                       <strong className="text-[#f9f6f0]">{confirmationModal.show.clientName}</strong>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#a3978b]">📞 SĐT Khách Hàng:</span>
+                      <strong className="text-[#c9bbaE]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e]">
@@ -1715,7 +1719,7 @@ export default function App() {
                     const crewListText = getNormalizeCrewList(show.assignedStaff)
                       .map(c => `+ ${c.role}: ${c.name}`)
                       .join('\n');
-                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Ngày: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
+                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- SĐT Khách: ${show.clientPhone || 'Chưa có'}\n- Ngày: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
                   }
                   if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(text).then(() => {
