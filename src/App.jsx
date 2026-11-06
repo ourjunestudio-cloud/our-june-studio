@@ -307,7 +307,17 @@ export default function App() {
       };
     });
 
-    return monthlyBreakdown;
+    const annualSummary = monthlyBreakdown.reduce(
+      (acc, curr) => ({
+        totalRevenue: acc.totalRevenue + curr.revenue,
+        totalExpenses: acc.totalExpenses + curr.expenses,
+        totalProfit: acc.totalProfit + curr.profit,
+        totalShows: acc.totalShows + curr.count
+      }),
+      { totalRevenue: 0, totalExpenses: 0, totalProfit: 0, totalShows: 0 }
+    );
+
+    return { monthlyBreakdown, annualSummary };
   }, [shows, selectedYear]);
 
   const calendarDays = useMemo(() => {
@@ -874,91 +884,130 @@ export default function App() {
 
         {/* TAB 3: YEARLY ANALYTICS */}
         {activeTab === 'analytics' && (
-          <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-4 sm:p-6 shadow-2xs space-y-5">
-            <div>
-              <h2 className="text-base font-bold text-[#f9f6f0]">Thống Kê Tổng Quan Năm {selectedYear}</h2>
-              <p className="text-xs text-[#a3978b] font-medium">Bấm vào từng tháng để xem chi tiết Doanh thu & Lương nhân sự</p>
+          <div className="space-y-4">
+            {/* Tổng Kết Cả Năm Card */}
+            <div className="bg-[#1b1815] rounded-xl border border-[#3c342c] p-4 sm:p-5 shadow-lg space-y-3">
+              <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
+                <div>
+                  <h2 className="text-base font-bold text-[#f9f6f0]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
+                  <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
+                </div>
+                <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">
+                  {yearlyStats.annualSummary.totalShows} Show cả năm
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-[#24201c]/60 p-3.5 rounded-xl border border-[#2c251e] space-y-1">
+                  <span className="text-xs text-[#a3978b] font-medium uppercase tracking-wider">Tổng Doanh Thu Năm</span>
+                  <div className="text-lg sm:text-xl font-bold text-[#f9f6f0]">
+                    {formatCurrency(yearlyStats.annualSummary.totalRevenue)}
+                  </div>
+                </div>
+
+                <div className="bg-[#24201c]/60 p-3.5 rounded-xl border border-[#2c251e] space-y-1">
+                  <span className="text-xs text-rose-300 font-medium uppercase tracking-wider">Tổng Chi Phí Năm</span>
+                  <div className="text-lg sm:text-xl font-bold text-rose-300">
+                    {formatCurrency(yearlyStats.annualSummary.totalExpenses)}
+                  </div>
+                </div>
+
+                <div className="bg-[#24201c]/60 p-3.5 rounded-xl border border-[#2c251e] space-y-1">
+                  <span className="text-xs text-[#86efac] font-medium uppercase tracking-wider">Tổng Lợi Nhuận Ròng Năm</span>
+                  <div className="text-lg sm:text-xl font-bold text-[#86efac]">
+                    {formatCurrency(yearlyStats.annualSummary.totalProfit)}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {yearlyStats.map((item) => {
-                const maxRevenue = Math.max(...yearlyStats.map((m) => m.revenue), 1);
-                const revPercent = Math.min((item.revenue / maxRevenue) * 100, 100);
-                const isExpanded = expandedAnalyticsMonth === item.month;
-                const staffListEntries = Object.entries(item.staffEarnings || {});
+            {/* Chi tiết từng tháng */}
+            <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-4 sm:p-6 shadow-2xs space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-[#f9f6f0]">Chi Tiết Theo Từng Tháng</h3>
+                <p className="text-xs text-[#a3978b] font-medium">Bấm vào từng tháng để xem chi tiết doanh thu và lương nhân sự</p>
+              </div>
 
-                return (
-                  <div key={item.month} className={`bg-[#1b1815] rounded-xl border transition-all ${isExpanded ? 'border-[#3c342c] shadow-xs' : 'border-[#2c251e] hover:border-[#3c342c]'}`}>
-                    <div onClick={() => setExpandedAnalyticsMonth(isExpanded ? null : item.month)} className="p-3 sm:p-4 space-y-2 cursor-pointer">
-                      <div className="flex flex-col sm:flex-row justify-between text-xs font-bold text-[#f9f6f0] gap-1">
-                        <div className="flex items-center gap-2">
-                          <span>Tháng {item.month} ({item.count} show)</span>
-                          <span className="text-[10px] font-semibold text-[#c9bbaE] bg-[#26211c] px-2 py-0.5 rounded-full border border-[#3c342c]">
-                            {isExpanded ? '▲ Thu gọn' : '▼ Xem chi tiết'}
-                          </span>
-                        </div>
-                        <div className="flex gap-3 text-xs font-semibold">
-                          <span className="text-[#f9f6f0]">Doanh thu: {formatCurrencyCompact(item.revenue)}</span>
-                          <span className="text-rose-300">Chi phí: {formatCurrencyCompact(item.expenses)}</span>
-                          <span className="text-[#86efac]">Lợi nhuận: {formatCurrencyCompact(item.profit)}</span>
-                        </div>
-                      </div>
-                      <div className="w-full h-1.5 bg-[#24201c] rounded-full overflow-hidden border border-[#2c251e]">
-                        <div style={{ width: `${revPercent}%` }} className="h-full bg-[#a3978b] rounded-full transition-all duration-300" />
-                      </div>
-                    </div>
+              <div className="space-y-3">
+                {yearlyStats.monthlyBreakdown.map((item) => {
+                  const maxRevenue = Math.max(...yearlyStats.monthlyBreakdown.map((m) => m.revenue), 1);
+                  const revPercent = Math.min((item.revenue / maxRevenue) * 100, 100);
+                  const isExpanded = expandedAnalyticsMonth === item.month;
+                  const staffListEntries = Object.entries(item.staffEarnings || {});
 
-                    {isExpanded && (
-                      <div className="border-t border-[#2c251e] p-4 space-y-4 bg-[#24201c]/40 text-xs">
-                        <div className="space-y-2">
-                          <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân Bổ Doanh Thu Tháng {item.month}</span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-[#3e5244]"></span>
-                                <span className="font-bold text-[#c9bbaE]">Doanh thu Chụp Hình</span>
-                              </div>
-                              <span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.photoRevenue)}</span>
-                            </div>
-                            <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <span className="w-3 h-3 rounded-full bg-[#703f47]"></span>
-                                <span className="font-bold text-[#c9bbaE]">Doanh thu Makeup</span>
-                              </div>
-                              <span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.makeupRevenue)}</span>
-                            </div>
+                  return (
+                    <div key={item.month} className={`bg-[#1b1815] rounded-xl border transition-all ${isExpanded ? 'border-[#3c342c] shadow-xs' : 'border-[#2c251e] hover:border-[#3c342c]'}`}>
+                      <div onClick={() => setExpandedAnalyticsMonth(isExpanded ? null : item.month)} className="p-3 sm:p-4 space-y-2 cursor-pointer">
+                        <div className="flex flex-col sm:flex-row justify-between text-xs font-bold text-[#f9f6f0] gap-1">
+                          <div className="flex items-center gap-2">
+                            <span>Tháng {item.month} ({item.count} show)</span>
+                            <span className="text-[10px] font-semibold text-[#c9bbaE] bg-[#26211c] px-2 py-0.5 rounded-full border border-[#3c342c]">
+                              {isExpanded ? '▲ Thu gọn' : '▼ Xem chi tiết'}
+                            </span>
+                          </div>
+                          <div className="flex gap-3 text-xs font-semibold">
+                            <span className="text-[#f9f6f0]">Doanh thu: {formatCurrencyCompact(item.revenue)}</span>
+                            <span className="text-rose-300">Chi phí: {formatCurrencyCompact(item.expenses)}</span>
+                            <span className="text-[#86efac]">Lợi nhuận: {formatCurrencyCompact(item.profit)}</span>
                           </div>
                         </div>
-
-                        <div className="space-y-2">
-                          <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Thống Kê Show & Lương Ekip Trong Tháng</span>
-                          {staffListEntries.length === 0 ? (
-                            <p className="text-[#6b625b] italic">Không có dữ liệu nhân sự làm việc trong tháng này.</p>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                              {staffListEntries.map(([name, totalPay]) => {
-                                const showCount = item.staffShowCounts[name] || 0;
-                                return (
-                                  <div key={name} className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] flex flex-col justify-between space-y-1">
-                                    <div className="flex justify-between items-center">
-                                      <span className="font-bold text-[#c9bbaE]">👤 {name}</span>
-                                      <span className="text-[10px] font-semibold bg-[#26211c] text-[#c9bbaE] px-2 py-0.5 rounded-full border border-[#3c342c]">{showCount} show</span>
-                                    </div>
-                                    <div className="flex justify-between items-center pt-1 border-t border-[#25201b]">
-                                      <span className="text-[#a3978b] text-[11px]">Tổng lương:</span>
-                                      <span className="font-bold text-rose-300">{formatCurrency(totalPay)}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
+                        <div className="w-full h-1.5 bg-[#24201c] rounded-full overflow-hidden border border-[#2c251e]">
+                          <div style={{ width: `${revPercent}%` }} className="h-full bg-[#a3978b] rounded-full transition-all duration-300" />
                         </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+
+                      {isExpanded && (
+                        <div className="border-t border-[#2c251e] p-4 space-y-4 bg-[#24201c]/40 text-xs">
+                          <div className="space-y-2">
+                            <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân Bổ Doanh Thu Tháng {item.month}</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-3 h-3 rounded-full bg-[#3e5244]"></span>
+                                  <span className="font-bold text-[#c9bbaE]">Doanh thu Chụp Hình</span>
+                                </div>
+                                <span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.photoRevenue)}</span>
+                              </div>
+                              <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-3 h-3 rounded-full bg-[#703f47]"></span>
+                                  <span className="font-bold text-[#c9bbaE]">Doanh thu Makeup</span>
+                                </div>
+                                <span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.makeupRevenue)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Thống Kê Show & Lương Ekip Trong Tháng</span>
+                            {staffListEntries.length === 0 ? (
+                              <p className="text-[#6b625b] italic">Không có dữ liệu nhân sự làm việc trong tháng này.</p>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                {staffListEntries.map(([name, totalPay]) => {
+                                  const showCount = item.staffShowCounts[name] || 0;
+                                  return (
+                                    <div key={name} className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] flex flex-col justify-between space-y-1">
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-bold text-[#c9bbaE]">👤 {name}</span>
+                                        <span className="text-[10px] font-semibold bg-[#26211c] text-[#c9bbaE] px-2 py-0.5 rounded-full border border-[#3c342c]">{showCount} show</span>
+                                      </div>
+                                      <div className="flex justify-between items-center pt-1 border-t border-[#25201b]">
+                                        <span className="text-[#a3978b] text-[11px]">Tổng lương:</span>
+                                        <span className="font-bold text-rose-300">{formatCurrency(totalPay)}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
