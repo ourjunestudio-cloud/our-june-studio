@@ -426,6 +426,8 @@ export default function App() {
         await addDoc(collection(db, "shows"), showFormData);
       }
       setIsShowModalOpen(false);
+      // Chuyển về tab Danh sách sau khi lưu xong
+      setActiveTab('list');
     } catch (error) {
       console.error("Lỗi lưu show:", error);
       alert("Có lỗi khi lưu dữ liệu lên Firebase!");
@@ -1323,7 +1325,7 @@ export default function App() {
               </div>
 
               <div className="flex justify-end gap-2 pt-2.5 border-t border-[#2c251e]">
-                <button type="button" onClick={() => setIsShowModalOpen(false)} className="px-3 py-1 border border-[#3c342c] rounded text-[#c9bbaE]">
+                <button type="button" onClick={() => { setIsShowModalOpen(false); setActiveTab('list'); }} className="px-3 py-1 border border-[#3c342c] rounded text-[#c9bbaE]">
                   Hủy
                 </button>
                 <button type="submit" className="px-3 py-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded font-semibold">
