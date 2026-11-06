@@ -416,7 +416,6 @@ export default function App() {
     setIsShowModalOpen(true);
   };
 
-  // Hàm mở lại bảng chi tiết ngày dựa trên danh sách shows mới nhất
   const openDayDetailByDate = (targetDateStr, updatedShowsList = shows) => {
     if (!targetDateStr) return;
     const dayShows = updatedShowsList
@@ -451,8 +450,6 @@ export default function App() {
         updatedShows.push({ ...showFormData, id: docRef.id });
       }
       setIsShowModalOpen(false);
-      
-      // Mở ngay bảng chi tiết ngày với danh sách đã cập nhật tức thì
       openDayDetailByDate(targetDate, updatedShows);
     } catch (error) {
       console.error("Lỗi lưu show:", error);
@@ -465,8 +462,6 @@ export default function App() {
       try {
         await deleteDoc(doc(db, "shows", id));
         const updatedShows = shows.filter(s => s.id !== id);
-        
-        // Nếu đang mở modal ngày, cập nhật lại danh sách ngày đó ngay lập tức
         if (selectedCalendarDay && targetDate) {
           openDayDetailByDate(targetDate, updatedShows);
         }
@@ -1653,11 +1648,10 @@ export default function App() {
                     </div>
                   </div>
 
-                  {confirmationModal.show.notes && (
-                    <div className="bg-[#24201c]/50 p-2.5 rounded-lg text-[#c9bbaE] text-[11px] border border-[#2c251e]">
-                      <strong>Ghi chú:</strong> {confirmationModal.show.notes}
-                    </div>
-                  )}
+                  <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1">
+                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú buổi chụp:</span>
+                    <p className="text-[#f9f6f0] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
+                  </div>
                 </div>
               )}
 
@@ -1701,6 +1695,11 @@ export default function App() {
                       <span className="text-[#6b625b] italic">Chưa chọn nhân sự</span>
                     )}
                   </div>
+
+                  <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1">
+                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú cho Ekip:</span>
+                    <p className="text-[#f9f6f0] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -1711,12 +1710,12 @@ export default function App() {
                   const show = confirmationModal.show;
                   let text = '';
                   if (confirmationModal.type === 'client') {
-                    text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Ngày chụp: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
+                    text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Ngày chụp: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n- Ghi chú: ${show.notes || 'Không có'}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
                   } else {
                     const crewListText = getNormalizeCrewList(show.assignedStaff)
                       .map(c => `+ ${c.role}: ${c.name}`)
                       .join('\n');
-                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Ngày: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nLưu ý: ${show.notes || 'Anh/em có mặt đúng giờ'}`;
+                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Ngày: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
                   }
                   if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(text).then(() => {
