@@ -211,7 +211,7 @@ export default function App() {
   };
 
   const currentMonthShows = useMemo(() => {
-    return shows.filter((show) => {
+    const filtered = shows.filter((show) => {
       if (!show.date) return false;
       const d = new Date(show.date);
       const m = d.getMonth() + 1;
@@ -226,6 +226,14 @@ export default function App() {
       const matchStatus = statusFilter === 'All' || show.status === statusFilter;
 
       return matchMonth && matchSearch && matchStatus;
+    });
+
+    // Sắp xếp theo thứ tự thời gian từ cũ đến mới (ngày nhỏ/sớm lên trước, ngày lớn/muộn xuống sau)
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.date || '1970-01-01');
+      const dateB = new Date(b.date || '1970-01-01');
+      if (dateA - dateB !== 0) return dateA - dateB;
+      return (a.startTime || '00:00').localeCompare(b.startTime || '00:00');
     });
   }, [shows, selectedMonth, selectedYear, searchTerm, statusFilter]);
 
