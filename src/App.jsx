@@ -416,14 +416,13 @@ export default function App() {
     setIsShowModalOpen(true);
   };
 
-  // Hàm hỗ trợ mở lại bảng chi tiết ngày trên lịch
-  const openDayDetailByDate = (targetDateStr) => {
+  // Hàm mở lại bảng chi tiết ngày dựa trên danh sách shows mới nhất
+  const openDayDetailByDate = (targetDateStr, updatedShowsList = shows) => {
     if (!targetDateStr) return;
-    const dayShows = shows
+    const dayShows = updatedShowsList
       .filter((s) => s.date === targetDateStr)
       .sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
     
-    // Cập nhật tháng/năm hiển thị trên lịch nếu ngày thuộc tháng khác
     const dObj = new Date(targetDateStr);
     if (!isNaN(dObj.getTime())) {
       setSelectedMonth(dObj.getMonth() + 1);
@@ -442,16 +441,19 @@ export default function App() {
     e.preventDefault();
     const targetDate = showFormData.date;
     try {
+      let updatedShows = [...shows];
       if (editingShow) {
         const showRef = doc(db, "shows", editingShow.id);
         await updateDoc(showRef, showFormData);
+        updatedShows = updatedShows.map(s => s.id === editingShow.id ? { ...showFormData, id: editingShow.id } : s);
       } else {
-        await addDoc(collection(db, "shows"), showFormData);
+        const docRef = await addDoc(collection(db, "shows"), showFormData);
+        updatedShows.push({ ...showFormData, id: docRef.id });
       }
       setIsShowModalOpen(false);
       
-      // Chuyển về tab Calendar và mở danh sách show của ngày đó
-      openDayDetailByDate(targetDate);
+      // Mở ngay bảng chi tiết ngày với danh sách đã cập nhật tức thì
+      openDayDetailByDate(targetDate, updatedShows);
     } catch (error) {
       console.error("Lỗi lưu show:", error);
       alert("Có lỗi khi lưu dữ liệu lên Firebase!");
