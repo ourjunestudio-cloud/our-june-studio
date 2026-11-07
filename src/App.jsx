@@ -157,11 +157,17 @@ export default function App() {
     show: null
   });
 
+  // State chọn khoảng ngày (Booking.com style) trong modal show
+  const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
+  const [pickerMonth, setPickerMonth] = useState(selectedMonth);
+  const [pickerYear, setPickerYear] = useState(selectedYear);
+
   // Form states cho Show
   const [showFormData, setShowFormData] = useState({
     clientName: '',
     clientPhone: '',
-    date: '',
+    date: '', // Ngày bắt đầu (hoặc ngày duy nhất)
+    endDate: '', // Ngày kết thúc (nếu chọn nhiều ngày)
     startTime: '',
     endTime: '',
     packageType: '',
@@ -214,9 +220,19 @@ export default function App() {
     return formatCurrency(val);
   };
 
+  // Hàm kiểm tra một show có diễn ra trong ngày cụ thể (dateStr) hay không (hỗ trợ cả show nhiều ngày)
+  const isShowOnDate = (show, dateStr) => {
+    if (!show.date) return false;
+    const start = show.date;
+    const end = show.endDate || show.date;
+    return dateStr >= start && dateStr <= end;
+  };
+
   const currentMonthShows = useMemo(() => {
     const filtered = shows.filter((show) => {
       if (!show.date) return false;
+      // Kiểm tra xem show có nằm phần lớn hoặc bắt đầu trong tháng đang chọn không, 
+      // hoặc đơn giản check xem có ngày nào của show thuộc tháng đang chọn.
       const d = new Date(show.date);
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
@@ -229,7 +245,7 @@ export default function App() {
 
       const matchStatus = statusFilter === 'All' || show.status === statusFilter;
 
-      return matchMonth && matchSearch && matchStatus;
+      return (matchMonth || (show.endDate && new Date(show.endDate).getMonth() + 1 === selectedMonth)) && matchSearch && matchStatus;
     });
 
     return filtered.sort((a, b) => {
@@ -345,6 +361,7 @@ export default function App() {
           matchedShows.push({
             id: s.id,
             date: s.date,
+            endDate: s.endDate,
             packageType: s.packageType || 'Chụp hình',
             clientName: s.clientName || ''
           });
@@ -372,19 +389,19 @@ export default function App() {
         const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
         const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
         const dateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevDayNum).padStart(2, '0')}`;
-        const dayShows = shows.filter((s) => s.date === dateStr).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
+        const dayShows = shows.filter((s) => isShowOnDate(s, dateStr)).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
         daysArr.push({ dayNum: prevDayNum, dateStr, isCurrentMonth: false, shows: dayShows });
       } else if (i >= startDayOfWeek + daysInMonth) {
         const nextDayNum = i - (startDayOfWeek + daysInMonth) + 1;
         const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
         const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
         const dateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDayNum).padStart(2, '0')}`;
-        const dayShows = shows.filter((s) => s.date === dateStr).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
+        const dayShows = shows.filter((s) => isShowOnDate(s, dateStr)).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
         daysArr.push({ dayNum: nextDayNum, dateStr, isCurrentMonth: false, shows: dayShows });
       } else {
         const dayNum = i - startDayOfWeek + 1;
         const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-        const dayShows = shows.filter((s) => s.date === dateStr).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
+        const dayShows = shows.filter((s) => isShowOnDate(s, dateStr)).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
         daysArr.push({ dayNum, dateStr, isCurrentMonth: true, shows: dayShows });
       }
     }
@@ -417,6 +434,7 @@ export default function App() {
         clientName: showToEdit.clientName || '',
         clientPhone: showToEdit.clientPhone || '',
         date: showToEdit.date || '',
+        endDate: showToEdit.endDate || '',
         startTime: showToEdit.startTime || '',
         endTime: showToEdit.endTime || '',
         packageType: showToEdit.packageType || '',
@@ -430,10 +448,12 @@ export default function App() {
       });
     } else {
       setEditingShow(null);
+      const todayStr = defaultDate || new Date().toISOString().split('T')[0];
       setShowFormData({
         clientName: '',
         clientPhone: '',
-        date: defaultDate || '',
+        date: todayStr,
+        endDate: '',
         startTime: '',
         endTime: '',
         packageType: '',
@@ -448,13 +468,16 @@ export default function App() {
     }
     setNewExpenseTitle('');
     setNewExpenseAmount('');
+    setIsDateRangePickerOpen(false);
+    setPickerMonth(selectedMonth);
+    setPickerYear(selectedYear);
     setIsShowModalOpen(true);
   };
 
   const openDayDetailByDate = (targetDateStr, updatedShowsList = shows) => {
     if (!targetDateStr) return;
     const dayShows = updatedShowsList
-      .filter((s) => s.date === targetDateStr)
+      .filter((s) => isShowOnDate(s, targetDateStr))
       .sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
     
     const dObj = new Date(targetDateStr);
@@ -896,6 +919,9 @@ export default function App() {
                   const totalExp = calculateShowTotalExpenses(show);
                   const profit = (show.totalAmount || 0) - totalExp;
                   const otherExpensesSum = (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+                  const dateStr = show.endDate && show.endDate !== show.date 
+                    ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}`
+                    : new Date(show.date).toLocaleDateString('vi-VN');
 
                   return (
                     <div key={show.id} className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-4 shadow-2xs space-y-3 hover:border-[#3c342c] transition">
@@ -903,7 +929,7 @@ export default function App() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-xs bg-[#24201c] border border-[#3c342c] text-[#f9f6f0] px-2.5 py-0.5 rounded-md">{show.packageType}</span>
                           {renderStatusBadge(show.status)}
-                          <span className="text-xs text-[#a3978b] font-medium">📅 {new Date(show.date).toLocaleDateString('vi-VN')}</span>
+                          <span className="text-xs text-[#a3978b] font-medium">📅 {dateStr}</span>
                         </div>
                         <div className="flex items-center gap-1 self-end sm:self-auto">
                           <button onClick={() => handleOpenShowModal(show)} className="p-1.5 hover:bg-[#24201c] rounded-lg text-[#c9bbaE] text-xs font-medium flex items-center gap-1 border border-[#3c342c]">
@@ -1258,17 +1284,22 @@ export default function App() {
                   <div className="space-y-2">
                     <p className="text-xs text-[#c9bbaE] font-medium">Tổng số: <strong>{staffShows.length} lịch chụp</strong> trong năm</p>
                     <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
-                      {staffShows.map((item, idx) => (
-                        <div key={item.id || idx} className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] flex justify-between items-center text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
-                              📅 {new Date(item.date).toLocaleDateString('vi-VN')}
-                            </span>
-                            <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
+                      {staffShows.map((item, idx) => {
+                        const dateText = item.endDate && item.endDate !== item.date
+                          ? `${new Date(item.date).toLocaleDateString('vi-VN')} ➔ ${new Date(item.endDate).toLocaleDateString('vi-VN')}`
+                          : new Date(item.date).toLocaleDateString('vi-VN');
+                        return (
+                          <div key={item.id || idx} className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] flex justify-between items-center text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
+                                📅 {dateText}
+                              </span>
+                              <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
+                            </div>
+                            <span className="text-[#a3978b] text-[11px] font-medium truncate max-w-[140px]">{item.clientName}</span>
                           </div>
-                          <span className="text-[#a3978b] text-[11px] font-medium truncate max-w-[140px]">{item.clientName}</span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -1321,17 +1352,146 @@ export default function App() {
                     className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-[#c9bbaE]">Ngày Chụp *</label>
-                  <input
-                    type="date"
-                    required
-                    value={showFormData.date}
-                    onChange={(e) => setShowFormData({ ...showFormData, date: e.target.value })}
-                    style={{ fontSize: '16px' }}
-                    className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                  />
+
+                {/* Khoảng ngày chụp (Booking.com style) */}
+                <div className="space-y-1 relative">
+                  <label className="block text-[11px] font-bold text-[#c9bbaE]">Khoảng Ngày Chụp (Từ ngày ➔ Đến ngày) *</label>
+                  <div 
+                    onClick={() => setIsDateRangePickerOpen(!isDateRangePickerOpen)}
+                    className="w-full px-3 py-2 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] flex items-center justify-between cursor-pointer hover:border-[#86efac] transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icons.Calendar className="w-4 h-4 text-[#c9bbaE]" />
+                      <span>
+                        {showFormData.date ? new Date(showFormData.date).toLocaleDateString('vi-VN') : 'Chọn ngày bắt đầu'}
+                        {' ➔ '}
+                        {showFormData.endDate ? new Date(showFormData.endDate).toLocaleDateString('vi-VN') : (showFormData.date ? new Date(showFormData.date).toLocaleDateString('vi-VN') : 'Chọn ngày kết thúc')}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-[#86efac] bg-[#26211c] px-2 py-0.5 rounded border border-[#3c342c]">Chọn lịch ▾</span>
+                  </div>
+
+                  {/* Popover chọn ngày Booking.com style */}
+                  {isDateRangePickerOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 z-50 bg-[#1b1815] border border-[#3c342c] rounded-2xl shadow-2xl p-4 w-full sm:w-[340px] space-y-3">
+                      <div className="flex justify-between items-center border-b border-[#2c251e] pb-2">
+                        <div className="flex items-center gap-1">
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              if (pickerMonth === 1) { setPickerMonth(12); setPickerYear(pickerYear - 1); }
+                              else { setPickerMonth(pickerMonth - 1); }
+                            }}
+                            className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]"
+                          >
+                            <Icons.ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <span className="font-bold text-xs text-[#f9f6f0]">Tháng {pickerMonth} / {pickerYear}</span>
+                          <button 
+                            type="button" 
+                            onClick={() => {
+                              if (pickerMonth === 12) { setPickerMonth(1); setPickerYear(pickerYear + 1); }
+                              else { setPickerMonth(pickerMonth + 1); }
+                            }}
+                            className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]"
+                          >
+                            <Icons.ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => setIsDateRangePickerOpen(false)}
+                          className="text-xs text-[#a3978b] hover:text-[#f9f6f0]"
+                        >
+                          ✕ Đóng
+                        </button>
+                      </div>
+
+                      <div className="text-[10px] text-[#a3978b] bg-[#24201c] p-2 rounded border border-[#2c251e] text-center">
+                        {!showFormData.date ? 'Bấm chọn ngày BẮT ĐẦU' : (!showFormData.endDate || showFormData.endDate === showFormData.date ? 'Bấm chọn ngày KẾT THÚC' : 'Đã chọn xong khoảng ngày!')}
+                      </div>
+
+                      {/* Mini Calendar Grid */}
+                      <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#a3978b] mb-1">
+                        {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((d, i) => <span key={i}>{d}</span>)}
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                        {(() => {
+                          const firstDay = new Date(pickerYear, pickerMonth - 1, 1);
+                          const numDays = new Date(pickerYear, pickerMonth, 0).getDate();
+                          let startDow = firstDay.getDay() - 1;
+                          if (startDow === -1) startDow = 6;
+
+                          const cells = [];
+                          for (let i = 0; i < startDow; i++) {
+                            cells.push(<div key={'empty-' + i} />);
+                          }
+
+                          for (let d = 1; d <= numDays; d++) {
+                            const dateStr = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                            const isStart = showFormData.date === dateStr;
+                            const isEnd = showFormData.endDate === dateStr;
+                            const isInRange = showFormData.date && showFormData.endDate && dateStr > showFormData.date && dateStr < showFormData.endDate;
+
+                            let btnStyle = "bg-[#24201c] text-[#f3ece4] hover:bg-[#332b24]";
+                            if (isStart || isEnd) {
+                              btnStyle = "bg-[#d4c5b9] text-[#141210] font-bold shadow-xs";
+                            } else if (isInRange) {
+                              btnStyle = "bg-[#383028] text-[#f9f6f0]";
+                            }
+
+                            cells.push(
+                              <button
+                                key={dateStr}
+                                type="button"
+                                onClick={() => {
+                                  if (!showFormData.date || (showFormData.date && showFormData.endDate && showFormData.endDate !== showFormData.date)) {
+                                    // Chọn lại từ đầu làm ngày bắt đầu
+                                    setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
+                                  } else if (dateStr < showFormData.date) {
+                                    // Nếu chọn ngày trước ngày bắt đầu thì đổi lại thành ngày bắt đầu mới
+                                    setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
+                                  } else {
+                                    // Chọn làm ngày kết thúc
+                                    setShowFormData({ ...showFormData, endDate: dateStr });
+                                    setIsDateRangePickerOpen(false);
+                                  }
+                                }}
+                                className={`py-1.5 rounded-md font-semibold transition ${btnStyle}`}
+                              >
+                                {d}
+                              </button>
+                            );
+                          }
+                          return cells;
+                        })()}
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2 border-t border-[#2c251e] text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const today = new Date().toISOString().split('T')[0];
+                            setShowFormData({ ...showFormData, date: today, endDate: today });
+                            setIsDateRangePickerOpen(false);
+                          }}
+                          className="text-[#c9bbaE] hover:underline"
+                        >
+                          Chọn hôm nay
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsDateRangePickerOpen(false)}
+                          className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1 rounded-lg font-semibold"
+                        >
+                          Xác nhận
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
                 <div className="space-y-1">
                   <label className="block text-[11px] font-bold text-[#c9bbaE]">Gói Dịch Vụ</label>
                   <select
@@ -1609,6 +1769,9 @@ export default function App() {
                   const totalPackage = Number(show.totalAmount || 0);
                   const deposit = Number(show.depositAmount || 0);
                   const remaining = totalPackage - deposit;
+                  const dateText = show.endDate && show.endDate !== show.date
+                    ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}`
+                    : new Date(show.date).toLocaleDateString('vi-VN');
 
                   return (
                     <div key={show.id} className="bg-[#24201c]/40 p-3.5 rounded-xl border border-[#2c251e] space-y-3">
@@ -1619,6 +1782,7 @@ export default function App() {
                             <span className="text-[10px] font-bold bg-[#24201c] border border-[#3c342c] text-[#f9f6f0] px-2 py-0.5 rounded-md">{show.packageType}</span>
                           </div>
                           <p className="text-xs text-[#a3978b] font-medium mt-0.5">📞 SĐT: {show.clientPhone || 'Chưa có'}</p>
+                          <p className="text-xs text-[#c9bbaE] font-medium mt-0.5">📅 Thời gian: {dateText}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button onClick={() => { setSelectedCalendarDay(null); handleOpenShowModal(show); }} className="text-xs font-semibold text-[#c9bbaE] hover:underline flex items-center gap-1">
@@ -1633,7 +1797,7 @@ export default function App() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         <div className="bg-[#1b1815] p-2 rounded-lg border border-[#2c251e] flex items-center gap-1.5 text-[#c9bbaE]">
                           <Icons.Clock className="w-3.5 h-3.5 text-[#a3978b] shrink-0" />
-                          <span><strong>Thời gian:</strong> {show.startTime || '08:00'} - {show.endTime || '12:00'}</span>
+                          <span><strong>Giờ:</strong> {show.startTime || '08:00'} - {show.endTime || '12:00'}</span>
                         </div>
                         <div className="bg-[#1b1815] p-2 rounded-lg border border-[#2c251e] text-[#c9bbaE] truncate">
                           <span>📍 <strong>Địa điểm:</strong> {show.location || 'Chưa cập nhật'}</span>
@@ -1759,11 +1923,15 @@ export default function App() {
 
                   <div className="space-y-1.5 bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e]">
                     <div className="flex justify-between">
-                      <span className="text-[#a3978b]">📅 Ngày thực hiện:</span>
-                      <strong className="text-[#f9f6f0]">{new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}</strong>
+                      <span className="text-[#a3978b]">📅 Thời gian:</span>
+                      <strong className="text-[#f9f6f0]">
+                        {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
+                          ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
+                          : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
+                      </strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#a3978b]">⏰ Thời gian:</span>
+                      <span className="text-[#a3978b]">⏰ Giờ:</span>
                       <strong className="text-[#f9f6f0]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
                     </div>
                     <div className="flex justify-between">
@@ -1813,11 +1981,15 @@ export default function App() {
 
                   <div className="space-y-1.5 bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e]">
                     <div className="flex justify-between">
-                      <span className="text-[#a3978b]">📅 Ngày chụp:</span>
-                      <strong className="text-[#f9f6f0]">{new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}</strong>
+                      <span className="text-[#a3978b]">📅 Thời gian chụp:</span>
+                      <strong className="text-[#f9f6f0]">
+                        {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
+                          ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
+                          : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
+                      </strong>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#a3978b]">⏰ Thời gian làm việc:</span>
+                      <span className="text-[#a3978b]">⏰ Giờ làm việc:</span>
                       <strong className="text-[#f9f6f0]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
                     </div>
                     <div className="flex justify-between">
@@ -1851,14 +2023,17 @@ export default function App() {
               <button
                 onClick={() => {
                   const show = confirmationModal.show;
+                  const dateStrText = show.endDate && show.endDate !== show.date
+                    ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}`
+                    : new Date(show.date).toLocaleDateString('vi-VN');
                   let text = '';
                   if (confirmationModal.type === 'client') {
-                    text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Ngày chụp: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n- Ghi chú: ${show.notes || 'Không có'}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
+                    text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n- Ghi chú: ${show.notes || 'Không có'}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
                   } else {
                     const crewListText = getNormalizeCrewList(show.assignedStaff)
                       .map(c => `+ ${c.role}: ${c.name}`)
                       .join('\n');
-                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- SĐT Khách: ${show.clientPhone || 'Chưa có'}\n- Ngày: ${new Date(show.date).toLocaleDateString('vi-VN')}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
+                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- SĐT Khách: ${show.clientPhone || 'Chưa có'}\n- Thời gian: ${dateStrText}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
                   }
                   if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(text).then(() => {
