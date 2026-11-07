@@ -352,20 +352,48 @@ export default function App() {
       const d = new Date(s.date);
       if (d.getFullYear() === selectedYear) {
         const crewList = getNormalizeCrewList(s.assignedStaff);
-        const isAssigned = crewList.some(c => c.name === staffName);
-        if (isAssigned) {
+        const memberItem = crewList.find(c => c.name === staffName);
+        if (memberItem) {
           matchedShows.push({
             id: s.id,
             date: s.date,
             endDate: s.endDate,
             packageType: s.packageType || 'Chụp hình',
-            clientName: s.clientName || ''
+            clientName: s.clientName || '',
+            memberId: memberItem.id || memberItem.name,
+            pay: memberItem.pay || 0,
+            paid: !!memberItem.paid
           });
         }
       }
     });
 
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
+
+  // Hàm xử lý tick thanh toán lương cho nhân sự trên 1 show cụ thể
+  const handleToggleStaffPaid = async (showId, memberIdentifier, currentPaidStatus) => {
+    try {
+      const showObj = shows.find(s => s.id === showId);
+      if (!showObj) return;
+
+      const crewList = getNormalizeCrewList(showObj.assignedStaff);
+      const updatedCrewList = crewList.map((c) => {
+        const identifier = c.id || c.name;
+        if (identifier === memberIdentifier) {
+          return { ...c, paid: !currentPaidStatus };
+        }
+        return c;
+      });
+
+      const showRef = doc(db, "shows", showId);
+      await updateDoc(showRef, {
+        assignedStaff: { crewList: updatedCrewList }
+      });
+    } catch (error) {
+      console.error("Lỗi cập nhật trạng thái thanh toán lương:", error);
+      alert("Không thể cập nhật trạng thái lên Firebase!");
+    }
   };
 
   const calendarDays = useMemo(() => {
@@ -845,11 +873,9 @@ export default function App() {
                           const isMakeupOnly = show.packageType === 'Makeup';
                           const bgStyle = isMakeupOnly ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' : 'bg-[#33463a] text-[#f9f6f0] font-semibold';
                           
-                          // Kiểm tra xem show có nhiều ngày và ngày hiện tại CÓ PHẢI là ngày bắt đầu không
                           const hasMultiDays = show.endDate && show.endDate !== show.date;
                           const isStartDate = show.date === cell.dateStr;
                           const isEndDate = show.endDate === cell.dateStr;
-                          const isMiddleDate = hasMultiDays && !isStartDate && !isEndDate;
 
                           return (
                             <div 
@@ -861,7 +887,6 @@ export default function App() {
                               }`} 
                               title={`${show.clientName} (${show.packageType})`}
                             >
-                              {/* Chỉ hiển thị tên gói và tên khách ở ngày đầu tiên, các ngày sau chỉ nối màu và hiển thị dấu (...) hoặc tinh gọn */}
                               {isStartDate || !hasMultiDays ? (
                                 <>
                                   <div className="font-bold uppercase tracking-tighter opacity-90 break-words">{show.packageType} {hasMultiDays && `(Ngày đầu)`}</div>
@@ -1147,7 +1172,7 @@ export default function App() {
               <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Đội Ngũ Nhân Sự</h2>
-                  <p className="text-xs text-[#a3978b] font-medium">Bấm vào tên nhân sự để xem lịch chụp năm {selectedYear}</p>
+                  <p className="text-xs text-[#a3978b] font-medium">Bấm vào tên nhân sự để xem lịch chụp và thanh toán lương năm {selectedYear}</p>
                 </div>
                 <button
                   onClick={() => handleOpenStaffModal(null)}
@@ -1168,7 +1193,7 @@ export default function App() {
                       className="cursor-pointer flex-1 pr-2"
                     >
                       <h4 className="font-bold text-xs text-[#f9f6f0] group-hover:text-[#86efac] transition flex items-center gap-1.5">
-                        <span>👤</span> {st.name} <span className="text-[10px] text-[#86efac] font-normal">(Xem lịch ➔)</span>
+                        <span>👤</span> {st.name} <span className="text-[10px] text-[#86efac] font-normal">(Xem lịch & lương ➔)</span>
                       </h4>
                       <span className="text-[10px] font-semibold bg-[#26211c] text-[#c9bbaE] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#3c342c]">{st.role}</span>
                       <p className="text-[11px] text-[#a3978b] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
@@ -1198,7 +1223,7 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - Bấm vào tên nhân sự để xem lịch chụp trong năm.<br/>
+                - Bấm vào tên nhân sự để mở bảng lịch chụp và ô tick xác nhận đã trả lương cho từng show.<br/>
                 - Bấm vào nút Sửa (icon bút) để chỉnh sửa tên, chuyên môn hoặc số điện thoại.
               </p>
             </div>
@@ -1255,7 +1280,7 @@ export default function App() {
                   value={staffFormData.phone}
                   onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
                   style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
+                  className="w-full px-2.5 py-1 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
                 />
               </div>
 
@@ -1272,13 +1297,13 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: STAFF YEARLY SCHEDULE LIST */}
+      {/* MODAL: STAFF YEARLY SCHEDULE & PAID SALARY TICK CHECKBOX */}
       {selectedStaffForModal && (
         <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
-          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-2xl w-full max-w-md p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-2xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
               <div>
-                <h3 className="font-bold text-sm text-[#f9f6f0]">Lịch Chụp Năm {selectedYear} Của: <span className="text-[#86efac]">{selectedStaffForModal.name}</span></h3>
+                <h3 className="font-bold text-sm text-[#f9f6f0]">Lịch Chụp & Lương Năm {selectedYear} Của: <span className="text-[#86efac]">{selectedStaffForModal.name}</span></h3>
                 <p className="text-xs text-[#a3978b] font-medium mt-0.5">Chuyên môn: {selectedStaffForModal.role}</p>
               </div>
               <button onClick={() => setSelectedStaffForModal(null)} className="text-[#a3978b] hover:text-[#f9f6f0] p-1">
@@ -1286,7 +1311,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {(() => {
                 const staffShows = getStaffYearlyShows(selectedStaffForModal.name);
                 if (staffShows.length === 0) {
@@ -1296,23 +1321,56 @@ export default function App() {
                     </div>
                   );
                 }
+
+                // Tính tổng tiền lương đã nhận / chưa nhận trong năm
+                const totalYearPay = staffShows.reduce((acc, curr) => acc + Number(curr.pay || 0), 0);
+                const totalPaidAmount = staffShows.filter(s => s.paid).reduce((acc, curr) => acc + Number(curr.pay || 0), 0);
+
                 return (
-                  <div className="space-y-2">
-                    <p className="text-xs text-[#c9bbaE] font-medium">Tổng số: <strong>{staffShows.length} lịch chụp</strong> trong năm</p>
-                    <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+                  <div className="space-y-3 text-xs">
+                    <div className="bg-[#24201c]/70 p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
+                      <div>
+                        <span className="text-[#a3978b] block">Tổng Show: <strong className="text-[#f9f6f0]">{staffShows.length} show</strong></span>
+                        <span className="text-[#a3978b] block mt-0.5">Tổng lương năm: <strong className="text-rose-300">{formatCurrency(totalYearPay)}</strong></span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[#86efac] font-semibold block">Đã thanh toán:</span>
+                        <span className="font-bold text-sm text-[#86efac]">{formatCurrency(totalPaidAmount)}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 max-h-[48vh] overflow-y-auto pr-1">
                       {staffShows.map((item, idx) => {
                         const dateText = item.endDate && item.endDate !== item.date
                           ? `${new Date(item.date).toLocaleDateString('vi-VN')} ➔ ${new Date(item.endDate).toLocaleDateString('vi-VN')}`
                           : new Date(item.date).toLocaleDateString('vi-VN');
+
                         return (
-                          <div key={item.id || idx} className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] flex justify-between items-center text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
-                                📅 {dateText}
-                              </span>
-                              <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
+                          <div key={item.id + '-' + (item.memberId || idx)} className={`p-3 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 transition ${item.paid ? 'bg-[#202c24]/40 border-[#2e4d38]' : 'bg-[#24201c]/60 border-[#2c251e]'}`}>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
+                                  📅 {dateText}
+                                </span>
+                                <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
+                              </div>
+                              <p className="text-[#a3978b] font-medium">Khách: {item.clientName}</p>
+                              <p className="text-rose-300 font-bold">Lương show: {formatCurrency(item.pay)}</p>
                             </div>
-                            <span className="text-[#a3978b] text-[11px] font-medium truncate max-w-[140px]">{item.clientName}</span>
+
+                            {/* Ô tick xác nhận đã thanh toán lương */}
+                            <div className="flex items-center gap-2 self-end sm:self-auto bg-[#1b1815] px-3 py-1.5 rounded-lg border border-[#3c342c]">
+                              <input
+                                type="checkbox"
+                                id={`paid-chk-${item.id}-${item.memberId}`}
+                                checked={!!item.paid}
+                                onChange={() => handleToggleStaffPaid(item.id, item.memberId, item.paid)}
+                                className="w-4 h-4 rounded accent-[#86efac] cursor-pointer"
+                              />
+                              <label htmlFor={`paid-chk-${item.id}-${item.memberId}`} className="cursor-pointer font-semibold text-[11px] select-none text-[#f9f6f0]">
+                                {item.paid ? <span className="text-[#86efac]">Đã trả lương</span> : <span className="text-[#a3978b]">Chưa trả lương</span>}
+                              </label>
+                            </div>
                           </div>
                         );
                       })}
@@ -1574,7 +1632,7 @@ export default function App() {
                       const currentCrew = showFormData.assignedStaff.crewList || [];
                       setShowFormData({
                         ...showFormData,
-                        assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0 }] }
+                        assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0, paid: false }] }
                       });
                     }}
                     className="text-[10px] font-bold text-[#f9f6f0] bg-[#24201c] border border-[#6b5d52] px-2 py-0.5 rounded"
@@ -1834,9 +1892,12 @@ export default function App() {
                       <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1 text-xs">
                         <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block mb-1">Phân công Nhân sự & Tiền công:</span>
                         {getNormalizeCrewList(show.assignedStaff).map((c, i) => (
-                          <div key={c.id || i} className="flex justify-between text-[#c9bbaE] border-b border-[#25201b] last:border-none py-0.5">
+                          <div key={c.id || i} className="flex justify-between text-[#c9bbaE] border-b border-[#25201b] last:border-none py-0.5 items-center">
                             <span>👤 {c.role}: <strong>{c.name}</strong></span>
-                            <span className="font-semibold text-rose-300">{formatCurrency(c.pay)}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-rose-300">{formatCurrency(c.pay)}</span>
+                              {c.paid && <span className="text-[10px] bg-[#202c24] text-[#86efac] px-1.5 py-0.2 rounded border border-[#2e4d38]">Đã trả lương</span>}
+                            </div>
                           </div>
                         ))}
                         {getNormalizeCrewList(show.assignedStaff).length === 0 && (
