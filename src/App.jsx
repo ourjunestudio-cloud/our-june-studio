@@ -166,8 +166,8 @@ export default function App() {
   const [showFormData, setShowFormData] = useState({
     clientName: '',
     clientPhone: '',
-    date: '', // Ngày bắt đầu (hoặc ngày duy nhất)
-    endDate: '', // Ngày kết thúc (nếu chọn nhiều ngày)
+    date: '', 
+    endDate: '', 
     startTime: '',
     endTime: '',
     packageType: '',
@@ -220,7 +220,6 @@ export default function App() {
     return formatCurrency(val);
   };
 
-  // Hàm kiểm tra một show có diễn ra trong ngày cụ thể (dateStr) hay không (hỗ trợ cả show nhiều ngày)
   const isShowOnDate = (show, dateStr) => {
     if (!show.date) return false;
     const start = show.date;
@@ -231,8 +230,6 @@ export default function App() {
   const currentMonthShows = useMemo(() => {
     const filtered = shows.filter((show) => {
       if (!show.date) return false;
-      // Kiểm tra xem show có nằm phần lớn hoặc bắt đầu trong tháng đang chọn không, 
-      // hoặc đơn giản check xem có ngày nào của show thuộc tháng đang chọn.
       const d = new Date(show.date);
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
@@ -347,7 +344,6 @@ export default function App() {
     return { monthlyBreakdown, annualSummary };
   }, [shows, selectedYear]);
 
-  // Lọc danh sách lịch chụp trong năm của một nhân sự cụ thể
   const getStaffYearlyShows = (staffName) => {
     if (!staffName) return [];
     const matchedShows = [];
@@ -551,7 +547,6 @@ export default function App() {
     });
   };
 
-  // Thêm / Sửa nhân sự
   const handleOpenStaffModal = (staffToEdit = null) => {
     if (staffToEdit) {
       setEditingStaff(staffToEdit);
@@ -849,11 +844,34 @@ export default function App() {
                         {cell.shows.map((show) => {
                           const isMakeupOnly = show.packageType === 'Makeup';
                           const bgStyle = isMakeupOnly ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' : 'bg-[#33463a] text-[#f9f6f0] font-semibold';
+                          
+                          // Kiểm tra xem show có nhiều ngày và ngày hiện tại CÓ PHẢI là ngày bắt đầu không
+                          const hasMultiDays = show.endDate && show.endDate !== show.date;
+                          const isStartDate = show.date === cell.dateStr;
+                          const isEndDate = show.endDate === cell.dateStr;
+                          const isMiddleDate = hasMultiDays && !isStartDate && !isEndDate;
 
                           return (
-                            <div key={show.id} className={`px-1.5 py-1 rounded text-[9px] sm:text-[10px] leading-tight ${bgStyle}`} title={`${show.clientName} (${show.packageType})`}>
-                              <div className="font-bold uppercase tracking-tighter opacity-90 break-words">{show.packageType}</div>
-                              <div className="font-normal break-words whitespace-normal">{show.clientName}</div>
+                            <div 
+                              key={show.id} 
+                              className={`px-1.5 py-1 text-[9px] sm:text-[10px] leading-tight ${bgStyle} ${
+                                hasMultiDays 
+                                  ? (isStartDate ? 'rounded-l-md ml-0.5' : isEndDate ? 'rounded-r-md mr-0.5' : 'rounded-none mx-[-4px]')
+                                  : 'rounded-md'
+                              }`} 
+                              title={`${show.clientName} (${show.packageType})`}
+                            >
+                              {/* Chỉ hiển thị tên gói và tên khách ở ngày đầu tiên, các ngày sau chỉ nối màu và hiển thị dấu (...) hoặc tinh gọn */}
+                              {isStartDate || !hasMultiDays ? (
+                                <>
+                                  <div className="font-bold uppercase tracking-tighter opacity-90 break-words">{show.packageType} {hasMultiDays && `(Ngày đầu)`}</div>
+                                  <div className="font-normal break-words whitespace-normal">{show.clientName}</div>
+                                </>
+                              ) : (
+                                <div className="text-center opacity-80 font-medium truncate">
+                                  {isEndDate ? '➔ Hết' : '...'}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -997,7 +1015,6 @@ export default function App() {
         {/* TAB 3: YEARLY ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
-            {/* Tổng Kết Cả Năm Card */}
             <div className="bg-[#1b1815] rounded-xl border border-[#3c342c] p-4 sm:p-5 shadow-lg space-y-3">
               <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
                 <div>
@@ -1033,7 +1050,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Chi tiết từng tháng */}
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-4 sm:p-6 shadow-2xs space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-[#f9f6f0]">Chi Tiết Theo Từng Tháng</h3>
@@ -1190,7 +1206,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL: STAFF FORM (THÊM / SỬA NHÂN SỰ) */}
+      {/* MODAL: STAFF FORM */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3">
           <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-xl w-full max-w-sm overflow-hidden">
@@ -1411,7 +1427,6 @@ export default function App() {
                         {!showFormData.date ? 'Bấm chọn ngày BẮT ĐẦU' : (!showFormData.endDate || showFormData.endDate === showFormData.date ? 'Bấm chọn ngày KẾT THÚC' : 'Đã chọn xong khoảng ngày!')}
                       </div>
 
-                      {/* Mini Calendar Grid */}
                       <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#a3978b] mb-1">
                         {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((d, i) => <span key={i}>{d}</span>)}
                       </div>
@@ -1447,13 +1462,10 @@ export default function App() {
                                 type="button"
                                 onClick={() => {
                                   if (!showFormData.date || (showFormData.date && showFormData.endDate && showFormData.endDate !== showFormData.date)) {
-                                    // Chọn lại từ đầu làm ngày bắt đầu
                                     setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
                                   } else if (dateStr < showFormData.date) {
-                                    // Nếu chọn ngày trước ngày bắt đầu thì đổi lại thành ngày bắt đầu mới
                                     setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
                                   } else {
-                                    // Chọn làm ngày kết thúc
                                     setShowFormData({ ...showFormData, endDate: dateStr });
                                     setIsDateRangePickerOpen(false);
                                   }
@@ -1880,7 +1892,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EXPORT CONFIRMATION CARDS (CLIENT / STAFF) */}
+      {/* MODAL: EXPORT CONFIRMATION CARDS */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-2xl w-full max-w-md overflow-hidden my-6">
