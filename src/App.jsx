@@ -114,7 +114,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  // Real-time Firestore states
   const [shows, setShows] = useState([]);
   const [staffList, setStaffList] = useState([]);
 
@@ -135,7 +134,6 @@ export default function App() {
     };
   }, []);
 
-  // Modals state
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [editingShow, setEditingShow] = useState(null);
@@ -143,7 +141,6 @@ export default function App() {
   const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
   const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
   
-  // State chỉnh sửa nhân sự
   const [editingStaff, setEditingStaff] = useState(null);
   const [staffFormData, setStaffFormData] = useState({
     name: '',
@@ -157,12 +154,10 @@ export default function App() {
     show: null
   });
 
-  // State chọn khoảng ngày (Booking.com style) trong modal show
   const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(selectedMonth);
   const [pickerYear, setPickerYear] = useState(selectedYear);
 
-  // Form states cho Show
   const [showFormData, setShowFormData] = useState({
     clientName: '',
     clientPhone: '',
@@ -352,14 +347,16 @@ export default function App() {
       const d = new Date(s.date);
       if (d.getFullYear() === selectedYear) {
         const crewList = getNormalizeCrewList(s.assignedStaff);
-        const isAssigned = crewList.some(c => c.name === staffName);
-        if (isAssigned) {
+        const memberInfo = crewList.find(c => c.name === staffName);
+        if (memberInfo) {
           matchedShows.push({
             id: s.id,
             date: s.date,
             endDate: s.endDate,
             packageType: s.packageType || 'Chụp hình',
-            clientName: s.clientName || ''
+            clientName: s.clientName || '',
+            pay: memberInfo.pay || 0,
+            isPaid: !!memberInfo.isPaid // Trạng thái đã trả lương cho nhân sự trong show này
           });
         }
       }
@@ -368,7 +365,31 @@ export default function App() {
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
-  const calendarDays = useMemo(() => {
+  // Hàm xử lý tick/untick trạng thái trả lương cho nhân sự trong show
+  const handleToggleStaffPaid = async (showId, staffName, currentPaidStatus) => {
+    const showTarget = shows.find(s => s.id === showId);
+    if (!showTarget) return;
+
+    const crewList = getNormalizeCrewList(showTarget.assignedStaff);
+    const updatedCrewList = crewList.map(c => {
+      if (c.name === staffName) {
+        return { ...c, isPaid: !currentPaidStatus };
+      }
+      return c;
+    });
+
+    try {
+      const showRef = doc(db, "shows", showId);
+      await updateDoc(showRef, {
+        assignedStaff: { crewList: updatedCrewList }
+      });
+    } catch (error) {
+      console.error("Lỗi cập nhật trạng thái trả lương:", error);
+      alert("Không thể cập nhật trạng thái lên Firebase!");
+    }
+  };
+
+  const calendarGridDays = useMemo(() => {
     const firstDayOfMonth = new Date(selectedYear, selectedMonth - 1, 1);
     const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
 
@@ -385,25 +406,61 @@ export default function App() {
         const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
         const prevYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
         const dateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(prevDayNum).padStart(2, '0')}`;
-        const dayShows = shows.filter((s) => isShowOnDate(s, dateStr)).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
-        daysArr.push({ dayNum: prevDayNum, dateStr, isCurrentMonth: false, shows: dayShows });
+        daysArr.push({ dayNum: prevDayNum, dateStr, isCurrentMonth: false });
       } else if (i >= startDayOfWeek + daysInMonth) {
         const nextDayNum = i - (startDayOfWeek + daysInMonth) + 1;
         const nextMonth = selectedMonth === 12 ? 1 : selectedMonth + 1;
         const nextYear = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
         const dateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDayNum).padStart(2, '0')}`;
-        const dayShows = shows.filter((s) => isShowOnDate(s, dateStr)).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
-        daysArr.push({ dayNum: nextDayNum, dateStr, isCurrentMonth: false, shows: dayShows });
+        daysArr.push({ dayNum: nextDayNum, dateStr, isCurrentMonth: false });
       } else {
         const dayNum = i - startDayOfWeek + 1;
         const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-        const dayShows = shows.filter((s) => isShowOnDate(s, dateStr)).sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
-        daysArr.push({ dayNum, dateStr, isCurrentMonth: true, shows: dayShows });
+        daysArr.push({ dayNum, dateStr, isCurrentMonth: true });
       }
     }
 
     return daysArr;
-  }, [selectedMonth, selectedYear, shows]);
+  }, [selectedMonth, selectedYear]);
+
+  const calendarMultiDayShows = useMemo(() => {
+    if (calendarGridDays.length === 0) return [];
+    const firstCellDate = calendarGridDays[0].dateStr;
+    const lastCellDate = calendarGridDays[calendarGridDays.length - 1].dateStr;
+
+    const matched = shows.filter(s => {
+      const start = s.date;
+      const end = s.endDate || s.date;
+      return start <= lastCellDate && end >= firstCellDate;
+    });
+
+    return matched.map(show => {
+      const startDate = show.date;
+      const endDate = show.endDate || show.date;
+
+      let startIndex = calendarGridDays.findIndex(d => d.dateStr === startDate);
+      let endIndex = calendarGridDays.findIndex(d => d.dateStr === endDate);
+
+      if (startIndex === -1) startIndex = 0;
+      if (endIndex === -1) endIndex = calendarGridDays.length - 1;
+
+      const startRow = Math.floor(startIndex / 7);
+      const endRow = Math.floor(endIndex / 7);
+      const startCol = startIndex % 7;
+      const endCol = endIndex % 7;
+
+      return {
+        ...show,
+        startIndex,
+        endIndex,
+        startRow,
+        endRow,
+        startCol,
+        endCol,
+        spansMultipleRows: startRow !== endRow
+      };
+    });
+  }, [shows, calendarGridDays]);
 
   const handlePrevMonth = () => {
     if (selectedMonth === 1) {
@@ -807,16 +864,16 @@ export default function App() {
               </div>
             </div>
 
-            {/* Google Calendar Grid */}
-            <div className="w-full overflow-x-auto">
+            {/* Google Calendar Grid with Multi-day Spanning Bars */}
+            <div className="w-full overflow-x-auto relative">
               <div className="grid grid-cols-7 border-b border-[#2c251e] text-center pb-2 min-w-[320px]">
                 {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (
                   <div key={idx} className="text-xs font-semibold text-[#a3978b]">{dayName}</div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 border-l border-t border-[#2c251e] min-w-[320px]">
-                {calendarDays.map((cell, idx) => {
+              <div className="grid grid-cols-7 border-l border-t border-[#2c251e] min-w-[320px] relative">
+                {calendarGridDays.map((cell, idx) => {
                   const todayStr = new Date().toISOString().split('T')[0];
                   const isToday = cell.dateStr === todayStr;
 
@@ -825,60 +882,51 @@ export default function App() {
                       key={idx}
                       onClick={() => {
                         if (cell.dateStr) {
-                          setSelectedCalendarDay({
-                            dateStr: cell.dateStr,
-                            shows: cell.shows,
-                            singleShowMode: cell.shows.length === 1
-                          });
+                          openDayDetailByDate(cell.dateStr);
                         }
                       }}
-                      className={`min-h-[90px] sm:min-h-[120px] p-1 border-r border-b border-[#2c251e] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#1b1815] hover:bg-[#26211c]/60' : 'bg-[#141210]/40'} cursor-pointer`}
+                      className={`min-h-[100px] sm:min-h-[130px] p-1 border-r border-b border-[#2c251e] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#1b1815] hover:bg-[#26211c]/60' : 'bg-[#141210]/40'} cursor-pointer`}
                     >
                       <div className="flex justify-center sm:justify-start mb-1">
                         <span className={`w-5 h-5 sm:w-5.5 sm:h-5.5 flex items-center justify-center rounded-full text-[11px] sm:text-xs font-medium ${isToday ? 'bg-[#d4c5b9] text-[#141210] font-bold shadow-2xs' : cell.isCurrentMonth ? 'text-[#f3ece4]' : 'text-[#6b625b]'}`}>
                           {cell.dayNum}
                         </span>
                       </div>
-
-                      <div className="space-y-1 overflow-hidden">
-                        {cell.shows.map((show) => {
-                          const isMakeupOnly = show.packageType === 'Makeup';
-                          const bgStyle = isMakeupOnly ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' : 'bg-[#33463a] text-[#f9f6f0] font-semibold';
-                          
-                          // Kiểm tra xem show có nhiều ngày và ngày hiện tại CÓ PHẢI là ngày bắt đầu không
-                          const hasMultiDays = show.endDate && show.endDate !== show.date;
-                          const isStartDate = show.date === cell.dateStr;
-                          const isEndDate = show.endDate === cell.dateStr;
-                          const isMiddleDate = hasMultiDays && !isStartDate && !isEndDate;
-
-                          return (
-                            <div 
-                              key={show.id} 
-                              className={`px-1.5 py-1 text-[9px] sm:text-[10px] leading-tight ${bgStyle} ${
-                                hasMultiDays 
-                                  ? (isStartDate ? 'rounded-l-md ml-0.5' : isEndDate ? 'rounded-r-md mr-0.5' : 'rounded-none mx-[-4px]')
-                                  : 'rounded-md'
-                              }`} 
-                              title={`${show.clientName} (${show.packageType})`}
-                            >
-                              {/* Chỉ hiển thị tên gói và tên khách ở ngày đầu tiên, các ngày sau chỉ nối màu và hiển thị dấu (...) hoặc tinh gọn */}
-                              {isStartDate || !hasMultiDays ? (
-                                <>
-                                  <div className="font-bold uppercase tracking-tighter opacity-90 break-words">{show.packageType} {hasMultiDays && `(Ngày đầu)`}</div>
-                                  <div className="font-normal break-words whitespace-normal">{show.clientName}</div>
-                                </>
-                              ) : (
-                                <div className="text-center opacity-80 font-medium truncate">
-                                  {isEndDate ? '➔ Hết' : '...'}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
                   );
                 })}
+
+                <div className="absolute inset-0 pointer-events-none grid grid-cols-7 grid-rows-5 gap-0.5 p-1 pt-8">
+                  {calendarMultiDayShows.map((show, index) => {
+                    const isMakeupOnly = show.packageType === 'Makeup';
+                    const bgStyle = isMakeupOnly ? 'bg-[#3d6849] text-[#f9f6f0]' : 'bg-[#c59b27] text-[#141210] font-semibold';
+                    
+                    const colStart = (show.startCol) + 1;
+                    const colSpan = (show.endIndex - show.startIndex) + 1;
+                    const rowIdx = show.startRow + 1;
+
+                    return (
+                      <div
+                        key={show.id || index}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDayDetailByDate(show.date);
+                        }}
+                        style={{
+                          gridColumn: `${colStart} / span ${colSpan}`,
+                          gridRow: `${rowIdx}`,
+                          zIndex: 10 + index
+                        }}
+                        className={`pointer-events-auto h-6 my-0.5 px-2.5 rounded-md text-[11px] font-bold flex items-center shadow-md truncate cursor-pointer transition hover:opacity-90 ${bgStyle}`}
+                        title={`${show.packageType}: ${show.clientName}`}
+                      >
+                        <span className="truncate">
+                          {show.packageType} {show.clientName}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
@@ -923,7 +971,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* List of Show Cards */}
             <div className="space-y-3">
               {currentMonthShows.length === 0 ? (
                 <div className="bg-[#1b1815] p-8 rounded-xl border border-[#2c251e] text-center space-y-2">
@@ -966,7 +1013,6 @@ export default function App() {
                           <p className="text-[#c9bbaE] font-medium mt-1">📍 {show.location || 'Chưa cập nhật'}</p>
                         </div>
 
-                        {/* Ekip list */}
                         <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] space-y-1">
                           <span className="font-semibold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip:</span>
                           <div className="space-y-0.5 text-[#c9bbaE]">
@@ -982,7 +1028,6 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Financial summary for single show */}
                         <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] flex flex-col justify-between space-y-1">
                           <div className="flex justify-between text-[#c9bbaE]">
                             <span>Doanh Thu HĐ:</span>
@@ -1272,10 +1317,10 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: STAFF YEARLY SCHEDULE LIST */}
+      {/* MODAL: STAFF YEARLY SCHEDULE LIST VỚI Ô TICK ĐÃ THANH TOÁN LƯƠNG */}
       {selectedStaffForModal && (
         <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
-          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-2xl w-full max-w-md p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-2xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
               <div>
                 <h3 className="font-bold text-sm text-[#f9f6f0]">Lịch Chụp Năm {selectedYear} Của: <span className="text-[#86efac]">{selectedStaffForModal.name}</span></h3>
@@ -1299,20 +1344,36 @@ export default function App() {
                 return (
                   <div className="space-y-2">
                     <p className="text-xs text-[#c9bbaE] font-medium">Tổng số: <strong>{staffShows.length} lịch chụp</strong> trong năm</p>
-                    <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+                    <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
                       {staffShows.map((item, idx) => {
                         const dateText = item.endDate && item.endDate !== item.date
                           ? `${new Date(item.date).toLocaleDateString('vi-VN')} ➔ ${new Date(item.endDate).toLocaleDateString('vi-VN')}`
                           : new Date(item.date).toLocaleDateString('vi-VN');
                         return (
-                          <div key={item.id || idx} className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] flex justify-between items-center text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
-                                📅 {dateText}
-                              </span>
-                              <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
+                          <div key={item.id || idx} className="bg-[#24201c]/60 p-3 rounded-lg border border-[#2c251e] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[11px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
+                                  📅 {dateText}
+                                </span>
+                                <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
+                              </div>
+                              <p className="text-[#a3978b] text-[11px] font-medium">Khách: {item.clientName}</p>
+                              <p className="text-rose-300 font-bold text-[11px]">Tiền công: {formatCurrency(item.pay)}</p>
                             </div>
-                            <span className="text-[#a3978b] text-[11px] font-medium truncate max-w-[140px]">{item.clientName}</span>
+
+                            {/* Ô tick chọn đánh dấu đã thanh toán lương */}
+                            <label className="flex items-center gap-2 bg-[#1b1815] border border-[#3c342c] px-3 py-1.5 rounded-lg cursor-pointer hover:border-[#86efac] transition shrink-0 self-end sm:self-auto">
+                              <input
+                                type="checkbox"
+                                checked={item.isPaid}
+                                onChange={() => handleToggleStaffPaid(item.id, selectedStaffForModal.name, item.isPaid)}
+                                className="w-4 h-4 accent-[#86efac] cursor-pointer"
+                              />
+                              <span className={`font-semibold text-xs ${item.isPaid ? 'text-[#86efac]' : 'text-[#a3978b]'}`}>
+                                {item.isPaid ? 'Đã trả lương' : 'Chưa trả lương'}
+                              </span>
+                            </label>
                           </div>
                         );
                       })}
@@ -1564,7 +1625,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Ekip Pay */}
               <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider">Phân công Ekip & Tiền công</span>
@@ -1574,7 +1634,7 @@ export default function App() {
                       const currentCrew = showFormData.assignedStaff.crewList || [];
                       setShowFormData({
                         ...showFormData,
-                        assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0 }] }
+                        assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0, isPaid: false }] }
                       });
                     }}
                     className="text-[10px] font-bold text-[#f9f6f0] bg-[#24201c] border border-[#6b5d52] px-2 py-0.5 rounded"
@@ -1650,7 +1710,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Chi Phí Khác */}
               <div className="space-y-1.5 border-t border-[#2c251e] pt-2.5">
                 <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider block">Chi Phí Khác</span>
                 <div className="space-y-1">
@@ -1689,7 +1748,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Finance Input */}
               <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
                 <div className="space-y-1">
                   <label className="block text-[11px] font-bold text-[#c9bbaE]">Giá Hợp Đồng (VNĐ)</label>
@@ -2045,11 +2103,11 @@ export default function App() {
                     const crewListText = getNormalizeCrewList(show.assignedStaff)
                       .map(c => `+ ${c.role}: ${c.name}`)
                       .join('\n');
-                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- SĐT Khách: ${show.clientPhone || 'Chưa có'}\n- Thời gian: ${dateStrText}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
+                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- SĐT Khách: ${show.clientPhone || 'Chưa có'}\n- Thời gian: ${dateStrText}\n- Giờ làm việc: ${show.startTime || '08:00'} - {show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
                   }
                   if (navigator.clipboard && navigator.clipboard.writeText) {
                     navigator.clipboard.writeText(text).then(() => {
-                      alert('Đã sao chép tin nhắn xác nhận!');
+                      alert('Da sao chép tin nhắn xác nhận!');
                     }).catch(() => {
                       alert('Không thể sao chép tự động.');
                     });
