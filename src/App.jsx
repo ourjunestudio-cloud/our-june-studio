@@ -141,6 +141,7 @@ export default function App() {
   const [editingShow, setEditingShow] = useState(null);
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
   const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
+  const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
     type: 'client',
@@ -228,7 +229,6 @@ export default function App() {
       return matchMonth && matchSearch && matchStatus;
     });
 
-    // Sắp xếp theo thứ tự thời gian từ cũ đến mới (ngày nhỏ/sớm lên trước, ngày lớn/muộn xuống sau)
     return filtered.sort((a, b) => {
       const dateA = new Date(a.date || '1970-01-01');
       const dateB = new Date(b.date || '1970-01-01');
@@ -327,6 +327,31 @@ export default function App() {
 
     return { monthlyBreakdown, annualSummary };
   }, [shows, selectedYear]);
+
+  // Lọc danh sách lịch chụp trong năm của một nhân sự cụ thể
+  const getStaffYearlyShows = (staffName) => {
+    if (!staffName) return [];
+    const matchedShows = [];
+    shows.forEach((s) => {
+      if (!s.date) return;
+      const d = new Date(s.date);
+      if (d.getFullYear() === selectedYear) {
+        const crewList = getNormalizeCrewList(s.assignedStaff);
+        const isAssigned = crewList.some(c => c.name === staffName);
+        if (isAssigned) {
+          matchedShows.push({
+            id: s.id,
+            date: s.date,
+            packageType: s.packageType || 'Chụp hình',
+            clientName: s.clientName || ''
+          });
+        }
+      }
+    });
+
+    // Sắp xếp theo ngày tăng dần
+    return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
+  };
 
   const calendarDays = useMemo(() => {
     const firstDayOfMonth = new Date(selectedYear, selectedMonth - 1, 1);
@@ -1056,7 +1081,7 @@ export default function App() {
               <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Đội Ngũ Nhân Sự</h2>
-                  <p className="text-xs text-[#a3978b] font-medium">Photo, Video, Makeup và Hair</p>
+                  <p className="text-xs text-[#a3978b] font-medium">Bấm vào tên nhân sự để xem lịch chụp trong năm {selectedYear}</p>
                 </div>
                 <button
                   onClick={() => setIsStaffModalOpen(true)}
@@ -1068,13 +1093,26 @@ export default function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {staffList.map((st) => (
-                  <div key={st.id} className="bg-[#24201c]/50 p-3 rounded-lg border border-[#2c251e] flex justify-between items-center">
+                  <div 
+                    key={st.id} 
+                    onClick={() => setSelectedStaffForModal(st)}
+                    className="bg-[#24201c]/50 p-3 rounded-lg border border-[#2c251e] flex justify-between items-center cursor-pointer hover:border-[#6b5d52] transition group"
+                  >
                     <div>
-                      <h4 className="font-bold text-xs text-[#f9f6f0]">{st.name}</h4>
+                      <h4 className="font-bold text-xs text-[#f9f6f0] group-hover:text-[#86efac] transition flex items-center gap-1.5">
+                        <span>👤</span> {st.name} <span className="text-[10px] text-[#86efac] font-normal">(Xem lịch ➔)</span>
+                      </h4>
                       <span className="text-[10px] font-semibold bg-[#26211c] text-[#c9bbaE] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#3c342c]">{st.role}</span>
                       <p className="text-[11px] text-[#a3978b] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
                     </div>
-                    <button onClick={() => handleDeleteStaff(st.id)} className="text-[#6b625b] hover:text-rose-300 p-1">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteStaff(st.id);
+                      }} 
+                      className="text-[#6b625b] hover:text-rose-300 p-1"
+                      title="Xóa nhân sự"
+                    >
                       <Icons.Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -1085,12 +1123,69 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                Dữ liệu hiện đã được đồng bộ **Real-time** qua Firebase Cloud. Mọi thay đổi từ bất kỳ thiết bị nào sẽ cập nhật tức thì.
+                Bấm vào tên bất kỳ nhân sự nào trong danh sách bên cạnh để xem toàn bộ lịch chụp (ngày và tên lịch chụp) của họ trong năm **{selectedYear}**.
               </p>
             </div>
           </div>
         )}
       </main>
+
+      {/* MODAL: STAFF YEARLY SCHEDULE LIST */}
+      {selectedStaffForModal && (
+        <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
+          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-2xl w-full max-w-md p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-[#f9f6f0]">Lịch Chụp Năm {selectedYear} Của: <span className="text-[#86efac]">{selectedStaffForModal.name}</span></h3>
+                <p className="text-xs text-[#a3978b] font-medium mt-0.5">Chuyên môn: {selectedStaffForModal.role}</p>
+              </div>
+              <button onClick={() => setSelectedStaffForModal(null)} className="text-[#a3978b] hover:text-[#f9f6f0] p-1">
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {(() => {
+                const staffShows = getStaffYearlyShows(selectedStaffForModal.name);
+                if (staffShows.length === 0) {
+                  return (
+                    <div className="text-center py-8 space-y-2">
+                      <p className="text-xs text-[#a3978b] italic">Nhân sự này chưa có lịch chụp nào trong năm {selectedYear}.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    <p className="text-xs text-[#c9bbaE] font-medium">Tổng số: <strong>{staffShows.length} lịch chụp</strong> trong năm</p>
+                    <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+                      {staffShows.map((item, idx) => (
+                        <div key={item.id || idx} className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] flex justify-between items-center text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
+                              📅 {new Date(item.date).toLocaleDateString('vi-VN')}
+                            </span>
+                            <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
+                          </div>
+                          <span className="text-[#a3978b] text-[11px] font-medium truncate max-w-[140px]">{item.clientName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="pt-2 border-t border-[#2c251e] flex justify-end">
+              <button
+                onClick={() => setSelectedStaffForModal(null)}
+                className="px-4 py-1.5 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded-xl text-xs font-semibold hover:bg-[#332b24]"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: SHOW FORM */}
       {isShowModalOpen && (
