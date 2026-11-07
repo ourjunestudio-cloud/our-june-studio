@@ -142,13 +142,22 @@ export default function App() {
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
   const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
   const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
+  
+  // State chỉnh sửa nhân sự
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [staffFormData, setStaffFormData] = useState({
+    name: '',
+    role: 'Photo',
+    phone: ''
+  });
+
   const [confirmationModal, setConfirmationModal] = useState({
     isOpen: false,
     type: 'client',
     show: null
   });
 
-  // Form states
+  // Form states cho Show
   const [showFormData, setShowFormData] = useState({
     clientName: '',
     clientPhone: '',
@@ -163,12 +172,6 @@ export default function App() {
     status: 'Chưa cọc',
     expenses: [],
     notes: ''
-  });
-
-  const [staffFormData, setStaffFormData] = useState({
-    name: '',
-    role: 'Photo',
-    phone: ''
   });
 
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
@@ -349,7 +352,6 @@ export default function App() {
       }
     });
 
-    // Sắp xếp theo ngày tăng dần
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
@@ -526,15 +528,37 @@ export default function App() {
     });
   };
 
+  // Thêm / Sửa nhân sự
+  const handleOpenStaffModal = (staffToEdit = null) => {
+    if (staffToEdit) {
+      setEditingStaff(staffToEdit);
+      setStaffFormData({
+        name: staffToEdit.name || '',
+        role: staffToEdit.role || 'Photo',
+        phone: staffToEdit.phone || ''
+      });
+    } else {
+      setEditingStaff(null);
+      setStaffFormData({ name: '', role: 'Photo', phone: '' });
+    }
+    setIsStaffModalOpen(true);
+  };
+
   const handleSaveStaff = async (e) => {
     e.preventDefault();
     if (!staffFormData.name) return;
     try {
-      await addDoc(collection(db, "staff"), staffFormData);
+      if (editingStaff) {
+        const staffRef = doc(db, "staff", editingStaff.id);
+        await updateDoc(staffRef, staffFormData);
+      } else {
+        await addDoc(collection(db, "staff"), staffFormData);
+      }
       setStaffFormData({ name: '', role: 'Photo', phone: '' });
+      setEditingStaff(null);
       setIsStaffModalOpen(false);
     } catch (error) {
-      console.error("Lỗi thêm nhân sự:", error);
+      console.error("Lỗi lưu nhân sự:", error);
     }
   };
 
@@ -1081,10 +1105,10 @@ export default function App() {
               <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Đội Ngũ Nhân Sự</h2>
-                  <p className="text-xs text-[#a3978b] font-medium">Bấm vào tên nhân sự để xem lịch chụp trong năm {selectedYear}</p>
+                  <p className="text-xs text-[#a3978b] font-medium">Bấm vào tên nhân sự để xem lịch chụp năm {selectedYear}</p>
                 </div>
                 <button
-                  onClick={() => setIsStaffModalOpen(true)}
+                  onClick={() => handleOpenStaffModal(null)}
                   className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-[#332b24] transition"
                 >
                   <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Nhân Sự
@@ -1095,26 +1119,35 @@ export default function App() {
                 {staffList.map((st) => (
                   <div 
                     key={st.id} 
-                    onClick={() => setSelectedStaffForModal(st)}
-                    className="bg-[#24201c]/50 p-3 rounded-lg border border-[#2c251e] flex justify-between items-center cursor-pointer hover:border-[#6b5d52] transition group"
+                    className="bg-[#24201c]/50 p-3 rounded-lg border border-[#2c251e] flex justify-between items-center transition group hover:border-[#6b5d52]"
                   >
-                    <div>
+                    <div 
+                      onClick={() => setSelectedStaffForModal(st)}
+                      className="cursor-pointer flex-1 pr-2"
+                    >
                       <h4 className="font-bold text-xs text-[#f9f6f0] group-hover:text-[#86efac] transition flex items-center gap-1.5">
                         <span>👤</span> {st.name} <span className="text-[10px] text-[#86efac] font-normal">(Xem lịch ➔)</span>
                       </h4>
                       <span className="text-[10px] font-semibold bg-[#26211c] text-[#c9bbaE] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#3c342c]">{st.role}</span>
                       <p className="text-[11px] text-[#a3978b] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
                     </div>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteStaff(st.id);
-                      }} 
-                      className="text-[#6b625b] hover:text-rose-300 p-1"
-                      title="Xóa nhân sự"
-                    >
-                      <Icons.Trash2 className="w-4 h-4" />
-                    </button>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button 
+                        onClick={() => handleOpenStaffModal(st)} 
+                        className="p-1.5 hover:bg-[#1b1815] rounded-lg text-[#c9bbaE] border border-[#3c342c]"
+                        title="Sửa thông tin nhân sự"
+                      >
+                        <Icons.Edit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteStaff(st.id)} 
+                        className="p-1.5 hover:bg-[#3d2524] rounded-lg text-rose-300 border border-[#4d302e]"
+                        title="Xóa nhân sự"
+                      >
+                        <Icons.Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1123,12 +1156,79 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                Bấm vào tên bất kỳ nhân sự nào trong danh sách bên cạnh để xem toàn bộ lịch chụp (ngày và tên lịch chụp) của họ trong năm **{selectedYear}**.
+                - Bấm vào tên nhân sự để xem lịch chụp trong năm.<br/>
+                - Bấm vào nút Sửa (icon bút) để chỉnh sửa tên, chuyên môn hoặc số điện thoại.
               </p>
             </div>
           </div>
         )}
       </main>
+
+      {/* MODAL: STAFF FORM (THÊM / SỬA NHÂN SỰ) */}
+      {isStaffModalOpen && (
+        <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3">
+          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="p-4 border-b border-[#2c251e] flex justify-between items-center bg-[#1b1815]">
+              <h3 className="font-bold text-sm text-[#f9f6f0]">
+                {editingStaff ? 'Chỉnh Sửa Thông Tin Nhân Sự' : 'Thêm Nhân Sự Mới'}
+              </h3>
+              <button onClick={() => setIsStaffModalOpen(false)} className="text-[#a3978b] hover:text-[#f9f6f0]">
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveStaff} autoComplete="off" className="p-4 space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-[#c9bbaE] mb-1">Tên Nhân Sự *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Nguyễn Văn A"
+                  value={staffFormData.name}
+                  onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })}
+                  style={{ fontSize: '16px' }}
+                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-[#c9bbaE] mb-1">Vị Trí Chuyên Môn</label>
+                <select
+                  value={staffFormData.role}
+                  onChange={(e) => setStaffFormData({ ...staffFormData, role: e.target.value })}
+                  style={{ fontSize: '16px' }}
+                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
+                >
+                  <option value="Photo">Photo</option>
+                  <option value="Quay phim">Quay phim</option>
+                  <option value="Makeup">Makeup</option>
+                  <option value="Làm tóc">Làm tóc</option>
+                  <option value="Freelance">Freelance Hỗ Trợ</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-[#c9bbaE] mb-1">Số Điện Thoại</label>
+                <input
+                  type="text"
+                  placeholder="0901234567"
+                  value={staffFormData.phone}
+                  onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
+                  style={{ fontSize: '16px' }}
+                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#2c251e]">
+                <button type="button" onClick={() => setIsStaffModalOpen(false)} className="px-3.5 py-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE]">
+                  Hủy
+                </button>
+                <button type="submit" className="px-4 py-1.5 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded-lg font-semibold">
+                  {editingStaff ? 'Lưu Thay Đổi' : 'Thêm Nhân Sự'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: STAFF YEARLY SCHEDULE LIST */}
       {selectedStaffForModal && (
@@ -1468,70 +1568,6 @@ export default function App() {
                 </button>
                 <button type="submit" className="px-3 py-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded font-semibold">
                   Lưu Show
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: STAFF FORM */}
-      {isStaffModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3">
-          <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-xl w-full max-w-sm overflow-hidden">
-            <div className="p-4 border-b border-[#2c251e] flex justify-between items-center bg-[#1b1815]">
-              <h3 className="font-bold text-sm text-[#f9f6f0]">Thêm Nhân Sự Mới</h3>
-              <button onClick={() => setIsStaffModalOpen(false)} className="text-[#a3978b] hover:text-[#f9f6f0]">
-                <Icons.X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveStaff} autoComplete="off" className="p-4 space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-[#c9bbaE] mb-1">Tên Nhân Sự *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="VD: Nguyễn Văn A"
-                  value={staffFormData.name}
-                  onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-[#c9bbaE] mb-1">Vị Trí Chuyên Môn</label>
-                <select
-                  value={staffFormData.role}
-                  onChange={(e) => setStaffFormData({ ...staffFormData, role: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
-                >
-                  <option value="Photo">Photo</option>
-                  <option value="Quay phim">Quay phim</option>
-                  <option value="Makeup">Makeup</option>
-                  <option value="Làm tóc">Làm tóc</option>
-                  <option value="Freelance">Freelance Hỗ Trợ</option>
-                </select>
-              </div>
-              <div>
-                <label className="block font-bold text-[#c9bbaE] mb-1">Số Điện Thoại</label>
-                <input
-                  type="text"
-                  placeholder="0901234567"
-                  value={staffFormData.phone}
-                  onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-[#2c251e]">
-                <button type="button" onClick={() => setIsStaffModalOpen(false)} className="px-3.5 py-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE]">
-                  Hủy
-                </button>
-                <button type="submit" className="px-4 py-1.5 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded-lg font-semibold">
-                  Thêm Nhân Sự
                 </button>
               </div>
             </form>
