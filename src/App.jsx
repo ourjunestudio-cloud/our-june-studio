@@ -316,10 +316,8 @@ export default function App() {
 
           const crewList = getNormalizeCrewList(s.assignedStaff);
           crewList.forEach((c) => {
-            if (c.name) {
-              if (Number(c.pay)) {
-                staffEarnings[c.name] = (staffEarnings[c.name] || 0) + Number(c.pay);
-              }
+            if (c.name && Number(c.pay) > 0) { // Chỉ thống kê lương > 0đ cho nhân sự
+              staffEarnings[c.name] = (staffEarnings[c.name] || 0) + Number(c.pay);
               staffShowCounts[c.name] = (staffShowCounts[c.name] || 0) + 1;
             }
           });
@@ -390,7 +388,7 @@ export default function App() {
       const d = new Date(s.date);
       if (d.getFullYear() === selectedYear) {
         const crewList = getNormalizeCrewList(s.assignedStaff);
-        const memberItem = crewList.find(c => c.name === staffName);
+        const memberItem = crewList.find(c => c.name === staffName && Number(c.pay || 0) > 0);
         if (memberItem) {
           matchedShows.push({
             id: s.id,
@@ -409,7 +407,7 @@ export default function App() {
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
-  // Hàm cập nhật trạng thái đã trả lương cho thợ (dùng chung cho cả Tab Danh Sách và Tab Ekip)
+  // Hàm cập nhật trạng thái đã trả lương cho thợ (chỉ áp dụng với thợ có lương > 0đ)
   const handleToggleStaffPaid = async (showId, memberIdentifier, currentPaidStatus) => {
     try {
       const showObj = shows.find(s => s.id === showId);
@@ -1029,30 +1027,34 @@ export default function App() {
                           <p className="text-[#c9bbaE] font-medium mt-1">📍 {show.location || 'Chưa cập nhật'}</p>
                         </div>
 
-                        {/* Ekip list with inline Paid Checkbox */}
+                        {/* Ekip list with conditional Paid Checkbox (chỉ hiện khi pay > 0) */}
                         <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] space-y-1.5">
                           <span className="font-semibold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip & Lương:</span>
                           <div className="space-y-1.5 text-[#c9bbaE]">
                             {getNormalizeCrewList(show.assignedStaff).map((member, i) => {
                               const memberIdentifier = member.id || member.name;
+                              const memberPay = Number(member.pay || 0);
                               return (
                                 <div key={memberIdentifier || i} className="flex items-center justify-between gap-1 bg-[#1b1815] p-1.5 rounded border border-[#3c342c]">
                                   <div className="truncate pr-1">
                                     <span className="font-bold text-[#f9f6f0]">{member.role}:</span> {member.name}
-                                    <span className="font-semibold text-rose-300 block">{formatCurrency(member.pay)}</span>
+                                    <span className="font-semibold text-rose-300 block">{formatCurrency(memberPay)}</span>
                                   </div>
-                                  <div className="flex items-center gap-1 shrink-0 bg-[#24201c] px-2 py-1 rounded border border-[#4d4237]">
-                                    <input
-                                      type="checkbox"
-                                      id={`list-paid-${show.id}-${memberIdentifier}`}
-                                      checked={!!member.paid}
-                                      onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)}
-                                      className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer"
-                                    />
-                                    <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">
-                                      {member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}
-                                    </label>
-                                  </div>
+                                  {/* Chỉ hiện ô tick nếu lương > 0đ (loại bỏ thợ/chủ nhân 0đ) */}
+                                  {memberPay > 0 && (
+                                    <div className="flex items-center gap-1 shrink-0 bg-[#24201c] px-2 py-1 rounded border border-[#4d4237]">
+                                      <input
+                                        type="checkbox"
+                                        id={`list-paid-${show.id}-${memberIdentifier}`}
+                                        checked={!!member.paid}
+                                        onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)}
+                                        className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer"
+                                      />
+                                      <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">
+                                        {member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}
+                                      </label>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1291,8 +1293,8 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - Tại tab <strong>Danh Sách</strong>, bạn có thể tick trực tiếp vào ô thanh toán lương của từng thợ trong mỗi show.<br/>
-                - Dữ liệu này đồng bộ thời gian thực (real-time) với tab Ekip và bảng lương năm.
+                - Ô tick "Đã trả lương" tại tab Danh Sách chỉ xuất hiện với các vị trí có số tiền công lớn hơn 0đ (giúp loại bỏ các vị trí chủ studio 0đ không cần thiết).<br/>
+                - Dữ liệu đồng bộ trực tiếp với tab Ekip và bảng lương năm.
               </p>
             </div>
           </div>
@@ -1385,7 +1387,7 @@ export default function App() {
                 if (staffShows.length === 0) {
                   return (
                     <div className="text-center py-8 space-y-2">
-                      <p className="text-xs text-[#a3978b] italic">Nhân sự này chưa có lịch chụp nào trong năm {selectedYear}.</p>
+                      <p className="text-xs text-[#a3978b] italic">Nhân sự này chưa có lịch chụp có lương nào trong năm {selectedYear}.</p>
                     </div>
                   );
                 }
@@ -1397,7 +1399,7 @@ export default function App() {
                   <div className="space-y-3 text-xs">
                     <div className="bg-[#24201c]/70 p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
                       <div>
-                        <span className="text-[#a3978b] block">Tổng Show: <strong className="text-[#f9f6f0]">{staffShows.length} show</strong></span>
+                        <span className="text-[#a3978b] block">Tổng Show có lương: <strong className="text-[#f9f6f0]">{staffShows.length} show</strong></span>
                         <span className="text-[#a3978b] block mt-0.5">Tổng lương năm: <strong className="text-rose-300">{formatCurrency(totalYearPay)}</strong></span>
                       </div>
                       <div className="text-right">
