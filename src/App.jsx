@@ -409,6 +409,7 @@ export default function App() {
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
+  // Hàm cập nhật trạng thái đã trả lương cho thợ (dùng chung cho cả Tab Danh Sách và Tab Ekip)
   const handleToggleStaffPaid = async (showId, memberIdentifier, currentPaidStatus) => {
     try {
       const showObj = shows.find(s => s.id === showId);
@@ -1028,16 +1029,33 @@ export default function App() {
                           <p className="text-[#c9bbaE] font-medium mt-1">📍 {show.location || 'Chưa cập nhật'}</p>
                         </div>
 
-                        {/* Ekip list */}
-                        <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] space-y-1">
-                          <span className="font-semibold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip:</span>
-                          <div className="space-y-0.5 text-[#c9bbaE]">
-                            {getNormalizeCrewList(show.assignedStaff).map((member, i) => (
-                              <div key={member.id || i} className="flex justify-between">
-                                <span>{member.role}: {member.name}</span>
-                                <span className="font-semibold text-rose-300">{formatCurrency(member.pay)}</span>
-                              </div>
-                            ))}
+                        {/* Ekip list with inline Paid Checkbox */}
+                        <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] space-y-1.5">
+                          <span className="font-semibold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip & Lương:</span>
+                          <div className="space-y-1.5 text-[#c9bbaE]">
+                            {getNormalizeCrewList(show.assignedStaff).map((member, i) => {
+                              const memberIdentifier = member.id || member.name;
+                              return (
+                                <div key={memberIdentifier || i} className="flex items-center justify-between gap-1 bg-[#1b1815] p-1.5 rounded border border-[#3c342c]">
+                                  <div className="truncate pr-1">
+                                    <span className="font-bold text-[#f9f6f0]">{member.role}:</span> {member.name}
+                                    <span className="font-semibold text-rose-300 block">{formatCurrency(member.pay)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0 bg-[#24201c] px-2 py-1 rounded border border-[#4d4237]">
+                                    <input
+                                      type="checkbox"
+                                      id={`list-paid-${show.id}-${memberIdentifier}`}
+                                      checked={!!member.paid}
+                                      onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)}
+                                      className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer"
+                                    />
+                                    <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">
+                                      {member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}
+                                    </label>
+                                  </div>
+                                </div>
+                              );
+                            })}
                             {getNormalizeCrewList(show.assignedStaff).length === 0 && (
                               <span className="text-[#6b625b] italic">Chưa phân công</span>
                             )}
@@ -1273,8 +1291,8 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - File Excel xuất ra nay đã được tách rõ thành: <strong>Chi phí lương thợ</strong> và <strong>Chi phí khác</strong>.<br/>
-                - Bấm vào tên nhân sự để mở bảng lịch chụp và ô tick xác nhận đã trả lương cho từng show.
+                - Tại tab <strong>Danh Sách</strong>, bạn có thể tick trực tiếp vào ô thanh toán lương của từng thợ trong mỗi show.<br/>
+                - Dữ liệu này đồng bộ thời gian thực (real-time) với tab Ekip và bảng lương năm.
               </p>
             </div>
           </div>
