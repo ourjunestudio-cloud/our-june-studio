@@ -344,6 +344,32 @@ export default function App() {
     return { monthlyBreakdown, annualSummary };
   }, [shows, selectedYear]);
 
+  // Hàm xuất file Excel (CSV format chuẩn UTF-8 Excel) cho Thống kê năm
+  const handleExportYearlyExcel = () => {
+    try {
+      let csvContent = "\uFEFF"; // BOM cho Excel nhận diện tiếng Việt UTF-8
+      csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
+      csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Doanh Thu Chụp Ảnh,Doanh Thu Makeup\n`;
+
+      yearlyStats.monthlyBreakdown.forEach((item) => {
+        csvContent += `Tháng ${item.month},${item.count},${item.revenue},${item.expenses},${item.profit},${item.photoRevenue},${item.makeupRevenue}\n`;
+      });
+
+      csvContent += `\nTỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n`;
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `OurJune_Studio_BaoCaoNam_${selectedYear}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Lỗi xuất Excel:", err);
+      alert("Không thể xuất file lúc này!");
+    }
+  };
+
   const getStaffYearlyShows = (staffName) => {
     if (!staffName) return [];
     const matchedShows = [];
@@ -371,7 +397,6 @@ export default function App() {
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
-  // Hàm xử lý tick thanh toán lương cho nhân sự trên 1 show cụ thể
   const handleToggleStaffPaid = async (showId, memberIdentifier, currentPaidStatus) => {
     try {
       const showObj = shows.find(s => s.id === showId);
@@ -1041,14 +1066,24 @@ export default function App() {
         {activeTab === 'analytics' && (
           <div className="space-y-4">
             <div className="bg-[#1b1815] rounded-xl border border-[#3c342c] p-4 sm:p-5 shadow-lg space-y-3">
-              <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
                   <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
                 </div>
-                <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">
-                  {yearlyStats.annualSummary.totalShows} Show cả năm
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">
+                    {yearlyStats.annualSummary.totalShows} Show cả năm
+                  </span>
+                  {/* Nút Xuất Excel Tổng Hợp Năm */}
+                  <button
+                    onClick={handleExportYearlyExcel}
+                    className="bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#86efac] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                  >
+                    <Icons.Download className="w-4 h-4" />
+                    <span>Xuất Excel Báo Cáo Năm</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1223,8 +1258,8 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - Bấm vào tên nhân sự để mở bảng lịch chụp và ô tick xác nhận đã trả lương cho từng show.<br/>
-                - Bấm vào nút Sửa (icon bút) để chỉnh sửa tên, chuyên môn hoặc số điện thoại.
+                - Tại tab Thống Kê, bạn có thể bấm nút <strong>"Xuất Excel Báo Cáo Năm"</strong> để tải về file Excel tổng kết toàn bộ doanh thu, chi phí và lợi nhuận từng tháng.<br/>
+                - Bấm vào tên nhân sự để mở bảng lịch chụp và ô tick xác nhận đã trả lương cho từng show.
               </p>
             </div>
           </div>
@@ -1280,7 +1315,7 @@ export default function App() {
                   value={staffFormData.phone}
                   onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
                   style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
+                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
                 />
               </div>
 
@@ -1322,7 +1357,6 @@ export default function App() {
                   );
                 }
 
-                // Tính tổng tiền lương đã nhận / chưa nhận trong năm
                 const totalYearPay = staffShows.reduce((acc, curr) => acc + Number(curr.pay || 0), 0);
                 const totalPaidAmount = staffShows.filter(s => s.paid).reduce((acc, curr) => acc + Number(curr.pay || 0), 0);
 
@@ -1358,7 +1392,6 @@ export default function App() {
                               <p className="text-rose-300 font-bold">Lương show: {formatCurrency(item.pay)}</p>
                             </div>
 
-                            {/* Ô tick xác nhận đã thanh toán lương */}
                             <div className="flex items-center gap-2 self-end sm:self-auto bg-[#1b1815] px-3 py-1.5 rounded-lg border border-[#3c342c]">
                               <input
                                 type="checkbox"
