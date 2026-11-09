@@ -196,12 +196,13 @@ export default function App() {
     return crewList.reduce((sum, item) => sum + Number(item.pay || 0), 0);
   };
 
+  const calculateShowOtherExpenses = (show) => {
+    return (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  };
+
   const calculateShowTotalExpenses = (show) => {
     const staffPay = calculateShowStaffPay(show.assignedStaff);
-    const otherExpenses = (show.expenses || []).reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0
-    );
+    const otherExpenses = calculateShowOtherExpenses(show);
     return staffPay + otherExpenses;
   };
 
@@ -285,6 +286,8 @@ export default function App() {
       const monthNum = i + 1;
       let revenue = 0;
       let expenses = 0;
+      let staffPayExpenses = 0;
+      let otherExpenses = 0;
       let count = 0;
       let makeupRevenue = 0;
       let photoRevenue = 0;
@@ -297,7 +300,12 @@ export default function App() {
         if (d.getFullYear() === selectedYear && d.getMonth() + 1 === monthNum) {
           const totalAmt = Number(s.totalAmount || 0);
           revenue += totalAmt;
-          expenses += calculateShowTotalExpenses(s);
+          
+          const sPay = calculateShowStaffPay(s.assignedStaff);
+          const oExp = calculateShowOtherExpenses(s);
+          staffPayExpenses += sPay;
+          otherExpenses += oExp;
+          expenses += (sPay + oExp);
           count++;
 
           if (s.packageType === 'Makeup') {
@@ -322,6 +330,8 @@ export default function App() {
         month: monthNum,
         revenue,
         expenses,
+        staffPayExpenses,
+        otherExpenses,
         profit: revenue - expenses,
         count,
         makeupRevenue,
@@ -335,27 +345,29 @@ export default function App() {
       (acc, curr) => ({
         totalRevenue: acc.totalRevenue + curr.revenue,
         totalExpenses: acc.totalExpenses + curr.expenses,
+        totalStaffPay: acc.totalStaffPay + curr.staffPayExpenses,
+        totalOtherExpenses: acc.totalOtherExpenses + curr.otherExpenses,
         totalProfit: acc.totalProfit + curr.profit,
         totalShows: acc.totalShows + curr.count
       }),
-      { totalRevenue: 0, totalExpenses: 0, totalProfit: 0, totalShows: 0 }
+      { totalRevenue: 0, totalExpenses: 0, totalStaffPay: 0, totalOtherExpenses: 0, totalProfit: 0, totalShows: 0 }
     );
 
     return { monthlyBreakdown, annualSummary };
   }, [shows, selectedYear]);
 
-  // Hàm xuất file Excel (CSV format chuẩn UTF-8 Excel) cho Thống kê năm
+  // Hàm xuất file Excel tách bạch chi phí lương thợ và chi phí khác
   const handleExportYearlyExcel = () => {
     try {
       let csvContent = "\uFEFF"; // BOM cho Excel nhận diện tiếng Việt UTF-8
       csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
-      csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Doanh Thu Chụp Ảnh,Doanh Thu Makeup\n`;
+      csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Doanh Thu Chụp Ảnh,Doanh Thu Makeup\n`;
 
       yearlyStats.monthlyBreakdown.forEach((item) => {
-        csvContent += `Tháng ${item.month},${item.count},${item.revenue},${item.expenses},${item.profit},${item.photoRevenue},${item.makeupRevenue}\n`;
+        csvContent += `Tháng ${item.month},${item.count},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoRevenue},${item.makeupRevenue}\n`;
       });
 
-      csvContent += `\nTỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n`;
+      csvContent += `\nTỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n`;
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -1099,6 +1111,9 @@ export default function App() {
                   <div className="text-lg sm:text-xl font-bold text-rose-300">
                     {formatCurrency(yearlyStats.annualSummary.totalExpenses)}
                   </div>
+                  <p className="text-[10px] text-[#a3978b] pt-1">
+                    Lương thợ: {formatCurrencyCompact(yearlyStats.annualSummary.totalStaffPay)} | Khác: {formatCurrencyCompact(yearlyStats.annualSummary.totalOtherExpenses)}
+                  </p>
                 </div>
 
                 <div className="bg-[#24201c]/60 p-3.5 rounded-xl border border-[#2c251e] space-y-1">
@@ -1135,7 +1150,7 @@ export default function App() {
                           </div>
                           <div className="flex gap-3 text-xs font-semibold">
                             <span className="text-[#f9f6f0]">Doanh thu: {formatCurrencyCompact(item.revenue)}</span>
-                            <span className="text-rose-300">Chi phí: {formatCurrencyCompact(item.expenses)}</span>
+                            <span className="text-rose-300">Chi phí: {formatCurrencyCompact(item.expenses)} (Lương: {formatCurrencyCompact(item.staffPayExpenses)})</span>
                             <span className="text-[#86efac]">Lợi nhuận: {formatCurrencyCompact(item.profit)}</span>
                           </div>
                         </div>
@@ -1258,7 +1273,7 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - Tại tab Thống Kê, bạn có thể bấm nút <strong>"Xuất Excel Báo Cáo Năm"</strong> để tải về file Excel tổng kết toàn bộ doanh thu, chi phí và lợi nhuận từng tháng.<br/>
+                - File Excel xuất ra nay đã được tách rõ thành: <strong>Chi phí lương thợ</strong> và <strong>Chi phí khác</strong>.<br/>
                 - Bấm vào tên nhân sự để mở bảng lịch chụp và ô tick xác nhận đã trả lương cho từng show.
               </p>
             </div>
