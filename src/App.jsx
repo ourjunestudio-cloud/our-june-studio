@@ -188,16 +188,15 @@ export default function App() {
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endDateStr = endDateObj.toISOString().split('T')[0];
 
-    // Ánh xạ màu sắc chuẩn theo gói dịch vụ sang colorId của Google Calendar
-    let colorId = '2'; // Mặc định
+    let colorId = '2'; 
     if (showData.packageType === 'Có khách hỏi') {
-      colorId = '5'; // Màu vàng
+      colorId = '5'; 
     } else if (showData.packageType === 'Thử váy và trao đổi với khách') {
-      colorId = '9'; // Màu xanh dương
+      colorId = '9'; 
     } else if (showData.packageType === 'Makeup') {
-      colorId = '4'; // Màu đỏ/hồng
+      colorId = '4'; 
     } else if (['Prewedding', 'Photoshoot', 'Tiệc báo hỷ', 'Đính hôn', 'Thành hôn', 'Tiệc thân mật'].includes(showData.packageType)) {
-      colorId = '10'; // Màu xanh lá
+      colorId = '10'; 
     }
 
     const eventDetails = {
@@ -1526,6 +1525,8 @@ export default function App() {
                   const totalPackage = Number(show.totalAmount || 0);
                   const deposit = Number(show.depositAmount || 0);
                   const remaining = totalPackage - deposit;
+                  const totalExp = calculateShowTotalExpenses(show);
+                  const profit = totalPackage - totalExp;
                   const dateText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
 
                   return (
@@ -1552,11 +1553,43 @@ export default function App() {
                         <div className="bg-[#1b1815] p-2 rounded-lg border border-[#2c251e] text-[#c9bbaE] truncate"><span>📍 <strong>Địa điểm:</strong> {show.location || 'Chưa cập nhật'}</span></div>
                       </div>
 
+                      {/* PHẦN HIỂN THỊ EKIP VÀ CHI PHÍ BỔ SUNG TRONG MODAL CHI TIẾT NGÀY */}
                       {!isNonComm && (
-                        <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1.5 text-xs">
-                          <div className="flex justify-between items-center"><span className="text-[#a3978b] font-medium">Giá gói chụp:</span><span className="font-bold text-[#f9f6f0]">{formatCurrency(totalPackage)}</span></div>
-                          <div className="flex justify-between items-center text-[#c9bbaE]"><span className="font-medium">Đã đặt cọc:</span><span className="font-bold text-[#f9f6f0]">{formatCurrency(deposit)}</span></div>
-                          <div className="flex justify-between items-center text-rose-300 pt-1 border-t border-[#2c251e]"><span className="font-medium">Còn lại phải thu:</span><span className="font-bold">{formatCurrency(remaining)}</span></div>
+                        <div className="space-y-2 text-xs">
+                          {/* Ekip */}
+                          <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1.5">
+                            <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip & Lương:</span>
+                            <div className="space-y-1">
+                              {getNormalizeCrewList(show.assignedStaff).map((member, i) => {
+                                const memberIdentifier = member.id || member.name;
+                                const memberPay = Number(member.pay || 0);
+                                return (
+                                  <div key={memberIdentifier || i} className="flex items-center justify-between gap-1 bg-[#24201c] p-1.5 rounded border border-[#3c342c]">
+                                    <div className="truncate pr-1">
+                                      <span className="font-bold text-[#f9f6f0]">{member.role}:</span> {member.name}
+                                      <span className="font-semibold text-rose-300 block">{formatCurrency(memberPay)}</span>
+                                    </div>
+                                    {memberPay > 0 && (
+                                      <div className="flex items-center gap-1 shrink-0 bg-[#1b1815] px-2 py-1 rounded border border-[#4d4237]">
+                                        <input type="checkbox" id={`day-paid-${show.id}-${memberIdentifier}`} checked={!!member.paid} onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)} className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer" />
+                                        <label htmlFor={`day-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">{member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}</label>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {getNormalizeCrewList(show.assignedStaff).length === 0 && (<span className="text-[#6b625b] italic">Chưa phân công ekip</span>)}
+                            </div>
+                          </div>
+
+                          {/* Tài chính show */}
+                          <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1.5">
+                            <div className="flex justify-between items-center"><span className="text-[#a3978b] font-medium">Giá hợp đồng:</span><span className="font-bold text-[#f9f6f0]">{formatCurrency(totalPackage)}</span></div>
+                            <div className="flex justify-between items-center text-[#c9bbaE]"><span className="font-medium">Đã đặt cọc:</span><span className="font-bold text-[#f9f6f0]">{formatCurrency(deposit)}</span></div>
+                            <div className="flex justify-between items-center text-rose-300"><span className="font-medium">Còn lại phải thu:</span><span className="font-bold">{formatCurrency(remaining)}</span></div>
+                            <div className="flex justify-between items-center text-rose-300 pt-1 border-t border-[#2c251e]"><span className="font-medium">Tổng chi phí (Lương thợ + phát sinh):</span><span className="font-bold">-{formatCurrency(totalExp)}</span></div>
+                            <div className="flex justify-between items-center text-[#86efac] pt-1 border-t border-[#2c251e] font-semibold"><span>Lợi nhuận ròng show:</span><span>{formatCurrency(profit)}</span></div>
+                          </div>
                         </div>
                       )}
 
@@ -1697,7 +1730,7 @@ export default function App() {
                 if (confirmationModal.type === 'client') {
                   text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
                 } else {
-                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}`;
+                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}`;
                 }
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(text).then(() => alert('Đã sao chép tin nhắn!'));
