@@ -105,6 +105,7 @@ const Icons = {
 };
 
 const PACKAGES = [
+  'Thử váy và trao đổi với khách',
   'Tiệc báo hỷ',
   'Đính hôn',
   'Thành hôn',
@@ -874,7 +875,8 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#a3978b]">
+              <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#a3978b] flex-wrap">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#1e3a8a]"></span> Thử váy & trao đổi</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#8c525c]"></span> Makeup</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#3e5244]"></span> Show Chụp Hình</span>
               </div>
@@ -915,8 +917,13 @@ export default function App() {
 
                       <div className="space-y-1 overflow-hidden">
                         {cell.shows.map((show) => {
+                          const isTryDress = show.packageType === 'Thử váy và trao đổi với khách';
                           const isMakeupOnly = show.packageType === 'Makeup';
-                          const bgStyle = isMakeupOnly ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' : 'bg-[#33463a] text-[#f9f6f0] font-semibold';
+                          const bgStyle = isTryDress 
+                            ? 'bg-[#1e3a8a] text-[#f9f6f0] font-semibold' 
+                            : isMakeupOnly 
+                            ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' 
+                            : 'bg-[#33463a] text-[#f9f6f0] font-semibold';
                           
                           const hasMultiDays = show.endDate && show.endDate !== show.date;
                           const isStartDate = show.date === cell.dateStr;
@@ -1195,7 +1202,7 @@ export default function App() {
                               <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
                                 <div className="flex items-center gap-2">
                                   <span className="w-3 h-3 rounded-full bg-[#3e5244]"></span>
-                                  <span className="font-bold text-[#c9bbaE]">Doanh thu Chụp Hình</span>
+                                  <span className="font-bold text-[#c9bbaE]">Doanh thu Chụp Ảnh</span>
                                 </div>
                                 <span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.photoRevenue)}</span>
                               </div>
@@ -2147,7 +2154,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1.5">
+                  <div className="space-y-1.5 bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e]">
                     <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Nhân sự Ekip:</span>
                     {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
                       <div key={c.id || i} className="flex justify-between border-b border-[#25201b] pb-1 last:border-none">
