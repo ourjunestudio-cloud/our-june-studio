@@ -16,6 +16,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Hàm lấy ngày hiện tại chuẩn theo giờ Việt Nam (GMT+7)
+const getVietnamTodayStr = () => {
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const vnTime = new Date(utc + (3600000 * 7));
+  return vnTime.toISOString().split('T')[0];
+};
+
 // Inline SVG Icon components
 const Icons = {
   Calendar: (props) => (
@@ -108,9 +116,12 @@ const PACKAGES = [
 ];
 
 export default function App() {
+  const currentVNDate = getVietnamTodayStr();
+  const currentVNObj = new Date(currentVNDate);
+
   const [activeTab, setActiveTab] = useState('calendar');
-  const [selectedMonth, setSelectedMonth] = useState(11);
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(currentVNObj.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(currentVNObj.getFullYear());
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
@@ -316,10 +327,8 @@ export default function App() {
 
           const crewList = getNormalizeCrewList(s.assignedStaff);
           crewList.forEach((c) => {
-            if (c.name) {
-              if (Number(c.pay)) {
-                staffEarnings[c.name] = (staffEarnings[c.name] || 0) + Number(c.pay);
-              }
+            if (c.name && Number(c.pay) > 0) {
+              staffEarnings[c.name] = (staffEarnings[c.name] || 0) + Number(c.pay);
               staffShowCounts[c.name] = (staffShowCounts[c.name] || 0) + 1;
             }
           });
@@ -356,10 +365,9 @@ export default function App() {
     return { monthlyBreakdown, annualSummary };
   }, [shows, selectedYear]);
 
-  // Hàm xuất file Excel tách bạch chi phí lương thợ và chi phí khác
   const handleExportYearlyExcel = () => {
     try {
-      let csvContent = "\uFEFF"; // BOM cho Excel nhận diện tiếng Việt UTF-8
+      let csvContent = "\uFEFF";
       csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
       csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Doanh Thu Chụp Ảnh,Doanh Thu Makeup\n`;
 
@@ -390,7 +398,7 @@ export default function App() {
       const d = new Date(s.date);
       if (d.getFullYear() === selectedYear) {
         const crewList = getNormalizeCrewList(s.assignedStaff);
-        const memberItem = crewList.find(c => c.name === staffName);
+        const memberItem = crewList.find(c => c.name === staffName && Number(c.pay || 0) > 0);
         if (memberItem) {
           matchedShows.push({
             id: s.id,
@@ -409,7 +417,6 @@ export default function App() {
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
-  // Hàm cập nhật trạng thái đã trả lương cho thợ (dùng chung cho cả Tab Danh Sách và Tab Ekip)
   const handleToggleStaffPaid = async (showId, memberIdentifier, currentPaidStatus) => {
     try {
       const showObj = shows.find(s => s.id === showId);
@@ -510,7 +517,7 @@ export default function App() {
       });
     } else {
       setEditingShow(null);
-      const todayStr = defaultDate || new Date().toISOString().split('T')[0];
+      const todayStr = defaultDate || getVietnamTodayStr();
       setShowFormData({
         clientName: '',
         clientPhone: '',
@@ -662,7 +669,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `OurJune_Studio_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `OurJune_Studio_Backup_${getVietnamTodayStr()}.json`;
     a.click();
   };
 
@@ -883,7 +890,7 @@ export default function App() {
 
               <div className="grid grid-cols-7 border-l border-t border-[#2c251e] min-w-[320px]">
                 {calendarDays.map((cell, idx) => {
-                  const todayStr = new Date().toISOString().split('T')[0];
+                  const todayStr = getVietnamTodayStr();
                   const isToday = cell.dateStr === todayStr;
 
                   return (
@@ -1029,30 +1036,34 @@ export default function App() {
                           <p className="text-[#c9bbaE] font-medium mt-1">📍 {show.location || 'Chưa cập nhật'}</p>
                         </div>
 
-                        {/* Ekip list with inline Paid Checkbox */}
+                        {/* Ekip list with conditional Paid Checkbox (chỉ hiện khi pay > 0) */}
                         <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] space-y-1.5">
                           <span className="font-semibold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip & Lương:</span>
                           <div className="space-y-1.5 text-[#c9bbaE]">
                             {getNormalizeCrewList(show.assignedStaff).map((member, i) => {
                               const memberIdentifier = member.id || member.name;
+                              const memberPay = Number(member.pay || 0);
                               return (
                                 <div key={memberIdentifier || i} className="flex items-center justify-between gap-1 bg-[#1b1815] p-1.5 rounded border border-[#3c342c]">
                                   <div className="truncate pr-1">
                                     <span className="font-bold text-[#f9f6f0]">{member.role}:</span> {member.name}
-                                    <span className="font-semibold text-rose-300 block">{formatCurrency(member.pay)}</span>
+                                    <span className="font-semibold text-rose-300 block">{formatCurrency(memberPay)}</span>
                                   </div>
-                                  <div className="flex items-center gap-1 shrink-0 bg-[#24201c] px-2 py-1 rounded border border-[#4d4237]">
-                                    <input
-                                      type="checkbox"
-                                      id={`list-paid-${show.id}-${memberIdentifier}`}
-                                      checked={!!member.paid}
-                                      onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)}
-                                      className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer"
-                                    />
-                                    <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">
-                                      {member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}
-                                    </label>
-                                  </div>
+                                  {/* Chỉ hiện ô tick nếu lương > 0đ */}
+                                  {memberPay > 0 && (
+                                    <div className="flex items-center gap-1 shrink-0 bg-[#24201c] px-2 py-1 rounded border border-[#4d4237]">
+                                      <input
+                                        type="checkbox"
+                                        id={`list-paid-${show.id}-${memberIdentifier}`}
+                                        checked={!!member.paid}
+                                        onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)}
+                                        className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer"
+                                      />
+                                      <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">
+                                        {member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}
+                                      </label>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1105,7 +1116,6 @@ export default function App() {
                   <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">
                     {yearlyStats.annualSummary.totalShows} Show cả năm
                   </span>
-                  {/* Nút Xuất Excel Tổng Hợp Năm */}
                   <button
                     onClick={handleExportYearlyExcel}
                     className="bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#86efac] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
@@ -1291,8 +1301,8 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - Tại tab <strong>Danh Sách</strong>, bạn có thể tick trực tiếp vào ô thanh toán lương của từng thợ trong mỗi show.<br/>
-                - Dữ liệu này đồng bộ thời gian thực (real-time) với tab Ekip và bảng lương năm.
+                - Ô tick "Đã trả lương" tại tab Danh Sách chỉ xuất hiện với các vị trí có số tiền công lớn hơn 0đ.<br/>
+                - Múi giờ hệ thống tự động đồng bộ theo giờ Việt Nam (GMT+7).
               </p>
             </div>
           </div>
@@ -1385,7 +1395,7 @@ export default function App() {
                 if (staffShows.length === 0) {
                   return (
                     <div className="text-center py-8 space-y-2">
-                      <p className="text-xs text-[#a3978b] italic">Nhân sự này chưa có lịch chụp nào trong năm {selectedYear}.</p>
+                      <p className="text-xs text-[#a3978b] italic">Nhân sự này chưa có lịch chụp có lương nào trong năm {selectedYear}.</p>
                     </div>
                   );
                 }
@@ -1397,7 +1407,7 @@ export default function App() {
                   <div className="space-y-3 text-xs">
                     <div className="bg-[#24201c]/70 p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
                       <div>
-                        <span className="text-[#a3978b] block">Tổng Show: <strong className="text-[#f9f6f0]">{staffShows.length} show</strong></span>
+                        <span className="text-[#a3978b] block">Tổng Show có lương: <strong className="text-[#f9f6f0]">{staffShows.length} show</strong></span>
                         <span className="text-[#a3978b] block mt-0.5">Tổng lương năm: <strong className="text-rose-300">{formatCurrency(totalYearPay)}</strong></span>
                       </div>
                       <div className="text-right">
@@ -1608,7 +1618,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => {
-                            const today = new Date().toISOString().split('T')[0];
+                            const today = getVietnamTodayStr();
                             setShowFormData({ ...showFormData, date: today, endDate: today });
                             setIsDateRangePickerOpen(false);
                           }}
