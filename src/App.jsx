@@ -210,11 +210,10 @@ export default function App() {
     }
   };
 
-  // Nút đồng bộ toàn bộ lịch cũ sang Google Calendar
   const handleSyncAllOldShows = async () => {
     const accessToken = localStorage.getItem('google_access_token');
     if (!accessToken) {
-      alert("Vui lòng bấm 'Kết nối Google Calendar' trước khi đồng bộ!");
+      alert("Vui lòng bấm 'Kết nối Google' trước khi đồng bộ!");
       return;
     }
 
