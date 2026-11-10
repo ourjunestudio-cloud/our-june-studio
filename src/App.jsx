@@ -16,6 +16,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// GOOGLE CLIENT ID CỦA VIỆT
+const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
+const SCOPES = "https://www.googleapis.com/auth/calendar.events";
+
 // Hàm lấy ngày hiện tại chuẩn theo giờ Việt Nam (GMT+7)
 const getVietnamTodayStr = () => {
   const now = new Date();
@@ -34,11 +38,6 @@ const Icons = {
   Users: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
-  ),
-  DollarSign: (props) => (
-    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
   TrendingUp: (props) => (
@@ -130,6 +129,8 @@ export default function App() {
   // Real-time Firestore states
   const [shows, setShows] = useState([]);
   const [staffList, setStaffList] = useState([]);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [tokenClient, setTokenClient] = useState(null);
 
   useEffect(() => {
     const unsubShows = onSnapshot(collection(db, "shows"), (snapshot) => {
@@ -142,11 +143,77 @@ export default function App() {
       setStaffList(items);
     });
 
+    // Load Google GIS script
+    const script = document.createElement('script');
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (window.google) {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: SCOPES,
+          callback: (response) => {
+            if (response && response.access_token) {
+              localStorage.setItem('google_access_token', response.access_token);
+              setIsGoogleConnected(true);
+              alert("Kết nối Google Calendar thành công! Từ nay lịch tạo trên web sẽ tự động đồng bộ sang Google Calendar.");
+            }
+          },
+        });
+        setTokenClient(client);
+        if (localStorage.getItem('google_access_token')) {
+          setIsGoogleConnected(true);
+        }
+      }
+    };
+    document.body.appendChild(script);
+
     return () => {
       unsubShows();
       unsubStaff();
     };
   }, []);
+
+  const handleConnectGoogle = () => {
+    if (tokenClient) {
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+      alert("Google API chưa sẵn sàng, vui lòng thử lại sau vài giây!");
+    }
+  };
+
+  // Hàm tự động đẩy sự kiện lên Google Calendar qua API
+  const syncShowToGoogleCalendar = async (showData) => {
+    const accessToken = localStorage.getItem('google_access_token');
+    if (!accessToken) return;
+
+    const startDate = showData.date;
+    const endDateObj = showData.endDate ? new Date(showData.endDate) : new Date(showData.date);
+    endDateObj.setDate(endDateObj.getDate() + 1);
+    const endDateStr = endDateObj.toISOString().split('T')[0];
+
+    const eventDetails = {
+      summary: `[${showData.packageType}] ${showData.clientName}`,
+      description: `SĐT: ${showData.clientPhone || 'Không có'}\nĐịa điểm: ${showData.location || 'Studio'}\nGhi chú: ${showData.notes || 'Không có'}`,
+      location: showData.location || 'Our June Studio',
+      start: { date: startDate },
+      end: { date: endDateStr },
+    };
+
+    try {
+      await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eventDetails),
+      });
+    } catch (err) {
+      console.error("Lỗi đồng bộ Google Calendar tự động:", err);
+    }
+  };
 
   // Modals state
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
@@ -156,26 +223,15 @@ export default function App() {
   const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
   const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
   
-  // State chỉnh sửa nhân sự
   const [editingStaff, setEditingStaff] = useState(null);
-  const [staffFormData, setStaffFormData] = useState({
-    name: '',
-    role: 'Photo',
-    phone: ''
-  });
+  const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
 
-  const [confirmationModal, setConfirmationModal] = useState({
-    isOpen: false,
-    type: 'client',
-    show: null
-  });
+  const [confirmationModal, setConfirmationModal] = useState({ isOpen: false, type: 'client', show: null });
 
-  // State chọn khoảng ngày (Booking.com style) trong modal show
   const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(selectedMonth);
   const [pickerYear, setPickerYear] = useState(selectedYear);
 
-  // Form states cho Show
   const [showFormData, setShowFormData] = useState({
     clientName: '',
     clientPhone: '',
@@ -196,7 +252,6 @@ export default function App() {
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
-  // Các gói không tính doanh thu / không phải show chính thức
   const isNonCommercialPackage = (pkgType) => pkgType === 'Thử váy và trao đổi với khách' || pkgType === 'Có khách hỏi';
 
   const getNormalizeCrewList = (assignedStaff) => {
@@ -247,7 +302,6 @@ export default function App() {
     return dateStr >= start && dateStr <= end;
   };
 
-  // Chỉ tính các show thương mại cho Tab Danh Sách
   const currentMonthShows = useMemo(() => {
     const filtered = shows.filter((show) => {
       if (!show.date) return false;
@@ -306,29 +360,14 @@ export default function App() {
     const netProfit = totalRevenue - totalExpenses;
     const remainingToCollect = totalRevenue - totalDeposit;
 
-    return {
-      totalRevenue,
-      totalDeposit,
-      remainingToCollect,
-      totalExpenses,
-      netProfit,
-      count: commercialShowsCount,
-      completedShowsCount
-    };
+    return { totalRevenue, totalDeposit, remainingToCollect, totalExpenses, netProfit, count: commercialShowsCount, completedShowsCount };
   }, [shows, selectedMonth, selectedYear]);
 
   const yearlyStats = useMemo(() => {
     const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => {
       const monthNum = i + 1;
-      let revenue = 0;
-      let expenses = 0;
-      let staffPayExpenses = 0;
-      let otherExpenses = 0;
-      let count = 0;
-      let makeupRevenue = 0;
-      let photoRevenue = 0;
-      const staffEarnings = {};
-      const staffShowCounts = {};
+      let revenue = 0, expenses = 0, staffPayExpenses = 0, otherExpenses = 0, count = 0, makeupRevenue = 0, photoRevenue = 0;
+      const staffEarnings = {}, staffShowCounts = {};
 
       shows.forEach((s) => {
         if (!s.date) return;
@@ -346,11 +385,8 @@ export default function App() {
           expenses += (sPay + oExp);
           count++;
 
-          if (s.packageType === 'Makeup') {
-            makeupRevenue += totalAmt;
-          } else {
-            photoRevenue += totalAmt;
-          }
+          if (s.packageType === 'Makeup') makeupRevenue += totalAmt;
+          else photoRevenue += totalAmt;
 
           const crewList = getNormalizeCrewList(s.assignedStaff);
           crewList.forEach((c) => {
@@ -362,19 +398,7 @@ export default function App() {
         }
       });
 
-      return {
-        month: monthNum,
-        revenue,
-        expenses,
-        staffPayExpenses,
-        otherExpenses,
-        profit: revenue - expenses,
-        count,
-        makeupRevenue,
-        photoRevenue,
-        staffEarnings,
-        staffShowCounts
-      };
+      return { month: monthNum, revenue, expenses, staffPayExpenses, otherExpenses, profit: revenue - expenses, count, makeupRevenue, photoRevenue, staffEarnings, staffShowCounts };
     });
 
     const annualSummary = monthlyBreakdown.reduce(
@@ -413,7 +437,6 @@ export default function App() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Lỗi xuất Excel:", err);
-      alert("Không thể xuất file lúc này!");
     }
   };
 
@@ -429,19 +452,13 @@ export default function App() {
         const memberItem = crewList.find(c => c.name === staffName && Number(c.pay || 0) > 0);
         if (memberItem) {
           matchedShows.push({
-            id: s.id,
-            date: s.date,
-            endDate: s.endDate,
-            packageType: s.packageType || 'Chụp hình',
-            clientName: s.clientName || '',
-            memberId: memberItem.id || memberItem.name,
-            pay: memberItem.pay || 0,
-            paid: !!memberItem.paid
+            id: s.id, date: s.date, endDate: s.endDate, packageType: s.packageType || 'Chụp hình',
+            clientName: s.clientName || '', memberId: memberItem.id || memberItem.name,
+            pay: memberItem.pay || 0, paid: !!memberItem.paid
           });
         }
       }
     });
-
     return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
@@ -453,19 +470,14 @@ export default function App() {
       const crewList = getNormalizeCrewList(showObj.assignedStaff);
       const updatedCrewList = crewList.map((c) => {
         const identifier = c.id || c.name;
-        if (identifier === memberIdentifier) {
-          return { ...c, paid: !currentPaidStatus };
-        }
+        if (identifier === memberIdentifier) return { ...c, paid: !currentPaidStatus };
         return c;
       });
 
       const showRef = doc(db, "shows", showId);
-      await updateDoc(showRef, {
-        assignedStaff: { crewList: updatedCrewList }
-      });
+      await updateDoc(showRef, { assignedStaff: { crewList: updatedCrewList } });
     } catch (error) {
       console.error("Lỗi cập nhật trạng thái thanh toán lương:", error);
-      alert("Không thể cập nhật trạng thái lên Firebase!");
     }
   };
 
@@ -502,65 +514,39 @@ export default function App() {
         daysArr.push({ dayNum, dateStr, isCurrentMonth: true, shows: dayShows });
       }
     }
-
     return daysArr;
   }, [selectedMonth, selectedYear, shows]);
 
   const handlePrevMonth = () => {
-    if (selectedMonth === 1) {
-      setSelectedMonth(12);
-      setSelectedYear(selectedYear - 1);
-    } else {
-      setSelectedMonth(selectedMonth - 1);
-    }
+    if (selectedMonth === 1) { setSelectedMonth(12); setSelectedYear(selectedYear - 1); }
+    else { setSelectedMonth(selectedMonth - 1); }
   };
 
   const handleNextMonth = () => {
-    if (selectedMonth === 12) {
-      setSelectedMonth(1);
-      setSelectedYear(selectedYear + 1);
-    } else {
-      setSelectedMonth(selectedMonth + 1);
-    }
+    if (selectedMonth === 12) { setSelectedMonth(1); setSelectedYear(selectedYear + 1); }
+    else { setSelectedMonth(selectedMonth + 1); }
   };
 
   const handleOpenShowModal = (showToEdit = null, defaultDate = null) => {
     if (showToEdit) {
       setEditingShow(showToEdit);
       setShowFormData({
-        clientName: showToEdit.clientName || '',
-        clientPhone: showToEdit.clientPhone || '',
-        date: showToEdit.date || '',
-        endDate: showToEdit.endDate || '',
-        startTime: showToEdit.startTime || '',
-        endTime: showToEdit.endTime || '',
-        packageType: showToEdit.packageType || '',
-        location: showToEdit.location || '',
+        clientName: showToEdit.clientName || '', clientPhone: showToEdit.clientPhone || '',
+        date: showToEdit.date || '', endDate: showToEdit.endDate || '',
+        startTime: showToEdit.startTime || '', endTime: showToEdit.endTime || '',
+        packageType: showToEdit.packageType || '', location: showToEdit.location || '',
         assignedStaff: { crewList: getNormalizeCrewList(showToEdit.assignedStaff) },
-        totalAmount: showToEdit.totalAmount || 0,
-        depositAmount: showToEdit.depositAmount || 0,
-        status: showToEdit.status || 'Chưa cọc',
-        expenses: showToEdit.expenses || [],
-        notes: showToEdit.notes || ''
+        totalAmount: showToEdit.totalAmount || 0, depositAmount: showToEdit.depositAmount || 0,
+        status: showToEdit.status || 'Chưa cọc', expenses: showToEdit.expenses || [], notes: showToEdit.notes || ''
       });
     } else {
       setEditingShow(null);
       const todayStr = defaultDate || getVietnamTodayStr();
       setShowFormData({
-        clientName: '',
-        clientPhone: '',
-        date: todayStr,
-        endDate: '',
-        startTime: '',
-        endTime: '',
-        packageType: '',
-        location: '',
-        assignedStaff: { crewList: [] },
-        totalAmount: 0,
-        depositAmount: 0,
-        status: 'Chưa cọc',
-        expenses: [],
-        notes: ''
+        clientName: '', clientPhone: '', date: todayStr, endDate: '',
+        startTime: '', endTime: '', packageType: '', location: '',
+        assignedStaff: { crewList: [] }, totalAmount: 0, depositAmount: 0,
+        status: 'Chưa cọc', expenses: [], notes: ''
       });
     }
     setNewExpenseTitle('');
@@ -583,11 +569,7 @@ export default function App() {
       setSelectedYear(dObj.getFullYear());
     }
 
-    setSelectedCalendarDay({
-      dateStr: targetDateStr,
-      shows: dayShows,
-      singleShowMode: dayShows.length === 1
-    });
+    setSelectedCalendarDay({ dateStr: targetDateStr, shows: dayShows, singleShowMode: dayShows.length === 1 });
     setActiveTab('calendar');
   };
 
@@ -613,12 +595,12 @@ export default function App() {
       } else {
         const docRef = await addDoc(collection(db, "shows"), payload);
         updatedShows.push({ ...payload, id: docRef.id });
+        syncShowToGoogleCalendar(payload);
       }
       setIsShowModalOpen(false);
       openDayDetailByDate(targetDate, updatedShows);
     } catch (error) {
       console.error("Lỗi lưu show:", error);
-      alert("Có lỗi khi lưu dữ liệu lên Firebase!");
     }
   };
 
@@ -638,34 +620,20 @@ export default function App() {
 
   const handleAddExpense = () => {
     if (!newExpenseTitle || !newExpenseAmount) return;
-    const newExp = {
-      id: 'exp-' + Date.now(),
-      title: newExpenseTitle,
-      amount: Number(newExpenseAmount)
-    };
-    setShowFormData({
-      ...showFormData,
-      expenses: [...(showFormData.expenses || []), newExp]
-    });
+    const newExp = { id: 'exp-' + Date.now(), title: newExpenseTitle, amount: Number(newExpenseAmount) };
+    setShowFormData({ ...showFormData, expenses: [...(showFormData.expenses || []), newExp] });
     setNewExpenseTitle('');
     setNewExpenseAmount('');
   };
 
   const handleRemoveExpense = (id) => {
-    setShowFormData({
-      ...showFormData,
-      expenses: (showFormData.expenses || []).filter((item) => item.id !== id)
-    });
+    setShowFormData({ ...showFormData, expenses: (showFormData.expenses || []).filter((item) => item.id !== id) });
   };
 
   const handleOpenStaffModal = (staffToEdit = null) => {
     if (staffToEdit) {
       setEditingStaff(staffToEdit);
-      setStaffFormData({
-        name: staffToEdit.name || '',
-        role: staffToEdit.role || 'Photo',
-        phone: staffToEdit.phone || ''
-      });
+      setStaffFormData({ name: staffToEdit.name || '', role: staffToEdit.role || 'Photo', phone: staffToEdit.phone || '' });
     } else {
       setEditingStaff(null);
       setStaffFormData({ name: '', role: 'Photo', phone: '' });
@@ -693,11 +661,7 @@ export default function App() {
 
   const handleDeleteStaff = async (id) => {
     if (window.confirm("Bạn có chắc muốn xóa nhân sự này?")) {
-      try {
-        await deleteDoc(doc(db, "staff", id));
-      } catch (error) {
-        console.error("Lỗi xóa nhân sự:", error);
-      }
+      try { await deleteDoc(doc(db, "staff", id)); } catch (error) { console.error("Lỗi xóa nhân sự:", error); }
     }
   };
 
@@ -738,14 +702,10 @@ export default function App() {
 
   const renderStatusBadge = (status) => {
     switch (status) {
-      case 'Chưa cọc':
-        return <span className="bg-[#26211c] text-[#d4c5b9] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#3c342c]">Chưa cọc</span>;
-      case 'Đã cọc':
-        return <span className="bg-[#2c251e] text-[#f3ece4] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#4d4237]">Đã cọc</span>;
-      case 'Đã thanh toán':
-        return <span className="bg-[#202c24] text-[#86efac] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#2e4d38]">Đã thanh toán</span>;
-      default:
-        return <span className="bg-[#26211c] text-[#d4c5b9] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#3c342c]">{status}</span>;
+      case 'Chưa cọc': return <span className="bg-[#26211c] text-[#d4c5b9] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#3c342c]">Chưa cọc</span>;
+      case 'Đã cọc': return <span className="bg-[#2c251e] text-[#f3ece4] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#4d4237]">Đã cọc</span>;
+      case 'Đã thanh toán': return <span className="bg-[#202c24] text-[#86efac] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#2e4d38]">Đã thanh toán</span>;
+      default: return <span className="bg-[#26211c] text-[#d4c5b9] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#3c342c]">{status}</span>;
     }
   };
 
@@ -761,36 +721,29 @@ export default function App() {
                 <span className="text-[10px] bg-[#26211c] text-[#c9bbaE] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#3c342c]">STUDIO</span>
               </div>
             </div>
-            <p className="text-[11px] text-[#a3978b] font-normal sm:hidden">Timeless Studio</p>
+            <button
+              onClick={handleConnectGoogle}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition ${isGoogleConnected ? 'bg-[#202c24] text-[#86efac] border-[#2e4d38]' : 'bg-[#26211c] text-[#f9f6f0] border-[#3c342c]'}`}
+            >
+              {isGoogleConnected ? '✓ Đã kết nối Google Calendar' : '🔗 Kết nối Google Calendar'}
+            </button>
           </div>
 
           {/* Navigation Tabs */}
           <nav className="flex items-center justify-start sm:justify-end bg-[#141210] p-1 rounded-xl text-xs font-medium overflow-x-auto scrollbar-none border border-[#2c251e]">
-            <button
-              onClick={() => setActiveTab('calendar')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'calendar' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}
-            >
+            <button onClick={() => setActiveTab('calendar')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'calendar' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}>
               <Icons.Calendar className="w-3.5 h-3.5 text-[#c9bbaE]" />
               <span>Calendar</span>
             </button>
-            <button
-              onClick={() => setActiveTab('list')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'list' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}
-            >
+            <button onClick={() => setActiveTab('list')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'list' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}>
               <Icons.Camera className="w-3.5 h-3.5 text-[#c9bbaE]" />
               <span>Danh Sách</span>
             </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'analytics' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}
-            >
+            <button onClick={() => setActiveTab('analytics')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'analytics' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}>
               <Icons.TrendingUp className="w-3.5 h-3.5 text-[#86efac]" />
               <span>Thống Kê</span>
             </button>
-            <button
-              onClick={() => setActiveTab('staff')}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'staff' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}
-            >
+            <button onClick={() => setActiveTab('staff')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'staff' ? 'bg-[#26211c] text-[#f9f6f0] font-semibold border border-[#3c342c]' : 'text-[#a3978b] hover:text-[#f9f6f0]'}`}>
               <Icons.Users className="w-3.5 h-3.5 text-[#c9bbaE]" />
               <span>Ekip</span>
             </button>
@@ -804,45 +757,23 @@ export default function App() {
         <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-[#a3978b] uppercase tracking-wider shrink-0">Thời gian:</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="bg-[#24201c] border border-[#3c342c] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#f3ece4] focus:outline-none flex-1 sm:flex-initial"
-            >
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <option key={m} value={m} className="bg-[#1b1815] text-[#f3ece4]">Tháng {m}</option>
-              ))}
+            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-[#24201c] border border-[#3c342c] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#f3ece4] focus:outline-none flex-1 sm:flex-initial">
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (<option key={m} value={m} className="bg-[#1b1815] text-[#f3ece4]">Tháng {m}</option>))}
             </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="bg-[#24201c] border border-[#3c342c] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#f3ece4] focus:outline-none flex-1 sm:flex-initial"
-            >
-              {Array.from({ length: 17 }, (_, i) => 2024 + i).map((y) => (
-                <option key={y} value={y} className="bg-[#1b1815] text-[#f3ece4]">Năm {y}</option>
-              ))}
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-[#24201c] border border-[#3c342c] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#f3ece4] focus:outline-none flex-1 sm:flex-initial">
+              {Array.from({ length: 17 }, (_, i) => 2024 + i).map((y) => (<option key={y} value={y} className="bg-[#1b1815] text-[#f3ece4]">Năm {y}</option>))}
             </select>
           </div>
 
           <div className="flex items-center gap-2 justify-end">
-            <button
-              onClick={() => handleOpenShowModal()}
-              className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-[#332b24] transition"
-            >
+            <button onClick={() => handleOpenShowModal()} className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-[#332b24] transition">
               <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" />
               <span>Tạo Lịch Hẹn / Show Mới</span>
             </button>
-            <button
-              onClick={handleExportData}
-              title="Xuất File Sao Lưu"
-              className="p-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE] hover:bg-[#26211c] transition"
-            >
+            <button onClick={handleExportData} title="Xuất File Sao Lưu" className="p-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE] hover:bg-[#26211c] transition">
               <Icons.Download className="w-4 h-4" />
             </button>
-            <label
-              title="Nhập File Dữ Liệu"
-              className="p-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE] hover:bg-[#26211c] transition cursor-pointer"
-            >
+            <label title="Nhập File Dữ Liệu" className="p-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE] hover:bg-[#26211c] transition cursor-pointer">
               <Icons.Upload className="w-4 h-4" />
               <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
             </label>
@@ -855,30 +786,22 @@ export default function App() {
             <span className="text-[11px] font-semibold text-[#a3978b] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
             <div className="flex items-baseline justify-between">
               <span className="text-xl sm:text-2xl font-bold text-[#f9f6f0]">{monthStats.count}</span>
-              <span className="text-[10px] font-semibold bg-[#26211c] text-[#86efac] px-1.5 py-0.5 rounded border border-[#2e4d38]">
-                {monthStats.completedShowsCount} xong
-              </span>
+              <span className="text-[10px] font-semibold bg-[#26211c] text-[#86efac] px-1.5 py-0.5 rounded border border-[#2e4d38]">{monthStats.completedShowsCount} xong</span>
             </div>
           </div>
 
           <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-[#a3978b] uppercase tracking-wider">Doanh Thu HĐ</span>
             <div>
-              <span className="text-base sm:text-xl font-bold text-[#f9f6f0] block truncate">
-                {formatCurrencyCompact(monthStats.totalRevenue)}
-              </span>
-              <p className="text-[10px] text-[#a3978b] font-medium truncate">
-                Còn lại: {formatCurrencyCompact(monthStats.remainingToCollect)}
-              </p>
+              <span className="text-base sm:text-xl font-bold text-[#f9f6f0] block truncate">{formatCurrencyCompact(monthStats.totalRevenue)}</span>
+              <p className="text-[10px] text-[#a3978b] font-medium truncate">Còn lại: {formatCurrencyCompact(monthStats.remainingToCollect)}</p>
             </div>
           </div>
 
           <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-rose-300 uppercase tracking-wider">Chi Phí Show</span>
             <div>
-              <span className="text-base sm:text-xl font-bold text-rose-300 block truncate">
-                {formatCurrencyCompact(monthStats.totalExpenses)}
-              </span>
+              <span className="text-base sm:text-xl font-bold text-rose-300 block truncate">{formatCurrencyCompact(monthStats.totalExpenses)}</span>
               <p className="text-[10px] text-[#a3978b] font-medium truncate">Lương ekip & phát sinh</p>
             </div>
           </div>
@@ -886,9 +809,7 @@ export default function App() {
           <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-[#86efac] uppercase tracking-wider">Lợi Nhuận Ròng</span>
             <div>
-              <span className="text-base sm:text-xl font-bold text-[#86efac] block truncate">
-                {formatCurrencyCompact(monthStats.netProfit)}
-              </span>
+              <span className="text-base sm:text-xl font-bold text-[#86efac] block truncate">{formatCurrencyCompact(monthStats.netProfit)}</span>
               <p className="text-[10px] text-[#a3978b] font-medium truncate">Doanh thu trừ Chi phí</p>
             </div>
           </div>
@@ -900,15 +821,9 @@ export default function App() {
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
               <div className="flex items-center justify-between sm:justify-start gap-2">
                 <div className="flex items-center gap-1">
-                  <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-[#26211c] text-[#c9bbaE] transition">
-                    <Icons.ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <h2 className="text-sm font-bold text-[#f9f6f0] min-w-[110px] text-center">
-                    Tháng {selectedMonth} / {selectedYear}
-                  </h2>
-                  <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-[#26211c] text-[#c9bbaE] transition">
-                    <Icons.ChevronRight className="w-4 h-4" />
-                  </button>
+                  <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-[#26211c] text-[#c9bbaE] transition"><Icons.ChevronLeft className="w-4 h-4" /></button>
+                  <h2 className="text-sm font-bold text-[#f9f6f0] min-w-[110px] text-center">Tháng {selectedMonth} / {selectedYear}</h2>
+                  <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-[#26211c] text-[#c9bbaE] transition"><Icons.ChevronRight className="w-4 h-4" /></button>
                 </div>
               </div>
 
@@ -923,9 +838,7 @@ export default function App() {
             {/* Google Calendar Grid */}
             <div className="w-full overflow-x-auto">
               <div className="grid grid-cols-7 border-b border-[#2c251e] text-center pb-2 min-w-[320px]">
-                {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (
-                  <div key={idx} className="text-xs font-semibold text-[#a3978b]">{dayName}</div>
-                ))}
+                {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (<div key={idx} className="text-xs font-semibold text-[#a3978b]">{dayName}</div>))}
               </div>
 
               <div className="grid grid-cols-7 border-l border-t border-[#2c251e] min-w-[320px]">
@@ -934,61 +847,29 @@ export default function App() {
                   const isToday = cell.dateStr === todayStr;
 
                   return (
-                    <div
-                      key={idx}
-                      onClick={() => {
-                        if (cell.dateStr) {
-                          setSelectedCalendarDay({
-                            dateStr: cell.dateStr,
-                            shows: cell.shows,
-                            singleShowMode: cell.shows.length === 1
-                          });
-                        }
-                      }}
-                      className={`min-h-[90px] sm:min-h-[120px] p-1 border-r border-b border-[#2c251e] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#1b1815] hover:bg-[#26211c]/60' : 'bg-[#141210]/40'} cursor-pointer`}
-                    >
+                    <div key={idx} onClick={() => { if (cell.dateStr) { setSelectedCalendarDay({ dateStr: cell.dateStr, shows: cell.shows, singleShowMode: cell.shows.length === 1 }); } }} className={`min-h-[90px] sm:min-h-[120px] p-1 border-r border-b border-[#2c251e] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#1b1815] hover:bg-[#26211c]/60' : 'bg-[#141210]/40'} cursor-pointer`}>
                       <div className="flex justify-center sm:justify-start mb-1">
-                        <span className={`w-5 h-5 sm:w-5.5 sm:h-5.5 flex items-center justify-center rounded-full text-[11px] sm:text-xs font-medium ${isToday ? 'bg-[#d4c5b9] text-[#141210] font-bold shadow-2xs' : cell.isCurrentMonth ? 'text-[#f3ece4]' : 'text-[#6b625b]'}`}>
-                          {cell.dayNum}
-                        </span>
+                        <span className={`w-5 h-5 sm:w-5.5 sm:h-5.5 flex items-center justify-center rounded-full text-[11px] sm:text-xs font-medium ${isToday ? 'bg-[#d4c5b9] text-[#141210] font-bold shadow-2xs' : cell.isCurrentMonth ? 'text-[#f3ece4]' : 'text-[#6b625b]'}`}>{cell.dayNum}</span>
                       </div>
-
                       <div className="space-y-1 overflow-hidden">
                         {cell.shows.map((show) => {
                           const isAsk = show.packageType === 'Có khách hỏi';
                           const isTryDress = isNonCommercialPackage(show.packageType);
                           const isMakeupOnly = show.packageType === 'Makeup';
-                          const bgStyle = isAsk
-                            ? 'bg-yellow-600 text-[#141210] font-bold'
-                            : isTryDress 
-                            ? 'bg-[#1e3a8a] text-[#f9f6f0] font-semibold' 
-                            : isMakeupOnly 
-                            ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' 
-                            : 'bg-[#33463a] text-[#f9f6f0] font-semibold';
-                          
+                          const bgStyle = isAsk ? 'bg-yellow-600 text-[#141210] font-bold' : isTryDress ? 'bg-[#1e3a8a] text-[#f9f6f0] font-semibold' : isMakeupOnly ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' : 'bg-[#33463a] text-[#f9f6f0] font-semibold';
                           const hasMultiDays = show.endDate && show.endDate !== show.date;
                           const isStartDate = show.date === cell.dateStr;
                           const isEndDate = show.endDate === cell.dateStr;
 
                           return (
-                            <div 
-                              key={show.id} 
-                              className={`px-1.5 py-1 text-[9px] sm:text-[10px] leading-tight ${bgStyle} ${
-                                hasMultiDays 
-                                  ? (isStartDate ? 'rounded-l-md ml-0.5' : isEndDate ? 'rounded-r-md mr-0.5' : 'rounded-none mx-[-4px]')
-                                  : 'rounded-md'
-                              }`} 
-                              title={`${show.clientName} (${show.packageType})`}
-                            >
+                            <div key={show.id} className={`px-1.5 py-1 text-[9px] sm:text-[10px] leading-tight ${bgStyle} ${hasMultiDays ? (isStartDate ? 'rounded-l-md ml-0.5' : isEndDate ? 'rounded-r-md mr-0.5' : 'rounded-none mx-[-4px]') : 'rounded-md'}`} title={`${show.clientName} (${show.packageType})`}>
                               {isStartDate || !hasMultiDays ? (
                                 <>
                                   <div className="font-bold uppercase tracking-tighter opacity-95 break-words">{show.packageType} {hasMultiDays && `(Ngày đầu)`}</div>
                                   <div className="font-medium break-words whitespace-normal">{show.clientName}</div>
                                 </>
                               ) : (
-                                <div className="text-center opacity-85 font-bold truncate">
-                                  {isEndDate ? '➔ Hết' : '...'}
-                                </div>
+                                <div className="text-center opacity-85 font-bold truncate">{isEndDate ? '➔ Hết' : '...'}</div>
                               )}
                             </div>
                           );
@@ -1000,12 +881,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Floating Action Button */}
-            <button
-              onClick={() => handleOpenShowModal()}
-              className="fixed bottom-6 right-6 z-40 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] p-3.5 rounded-2xl shadow-lg flex items-center justify-center transition-transform active:scale-95"
-              title="Tạo lịch chụp mới"
-            >
+            <button onClick={() => handleOpenShowModal()} className="fixed bottom-6 right-6 z-40 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] p-3.5 rounded-2xl shadow-lg flex items-center justify-center transition-transform active:scale-95" title="Tạo lịch chụp mới">
               <Icons.Plus className="w-5 h-5 stroke-[2.5]" />
             </button>
           </div>
@@ -1017,22 +893,10 @@ export default function App() {
             <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex flex-col sm:flex-row gap-2 justify-between">
               <div className="relative flex-1">
                 <Icons.Search className="w-4 h-4 absolute left-3 top-2.5 text-[#a3978b]" />
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm theo tên khách, gói chụp, địa điểm..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ fontSize: '16px' }}
-                  className="w-full pl-9 pr-3 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg text-xs font-medium focus:outline-none text-[#f3ece4]"
-                />
+                <input type="text" placeholder="Tìm kiếm theo tên khách, gói chụp, địa điểm..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '16px' }} className="w-full pl-9 pr-3 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg text-xs font-medium focus:outline-none text-[#f3ece4]" />
               </div>
               <div className="flex gap-2">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={{ fontSize: '16px' }}
-                  className="w-full sm:w-auto px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg text-xs font-semibold text-[#c9bbaE] focus:outline-none"
-                >
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ fontSize: '16px' }} className="w-full sm:w-auto px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg text-xs font-semibold text-[#c9bbaE] focus:outline-none">
                   <option value="All" className="bg-[#1b1815] text-[#c9bbaE]">Tất cả trạng thái</option>
                   <option value="Chưa cọc" className="bg-[#1b1815] text-[#c9bbaE]">Chưa cọc</option>
                   <option value="Đã cọc" className="bg-[#1b1815] text-[#c9bbaE]">Đã cọc</option>
@@ -1041,23 +905,18 @@ export default function App() {
               </div>
             </div>
 
-            {/* List of Show Cards */}
             <div className="space-y-3">
               {currentMonthShows.length === 0 ? (
                 <div className="bg-[#1b1815] p-8 rounded-xl border border-[#2c251e] text-center space-y-2">
-                  <p className="text-[#a3978b] font-medium text-xs">Chưa có show thương mại nào trong Tháng {selectedMonth}/{selectedYear} (Lịch "Có khách hỏi" và thử váy đã được ẩn khỏi danh sách này)</p>
-                  <button onClick={() => handleOpenShowModal()} className="text-xs font-semibold text-[#f3ece4] hover:underline">
-                    + Tạo lịch chụp mới ngay
-                  </button>
+                  <p className="text-[#a3978b] font-medium text-xs">Chưa có show thương mại nào trong Tháng {selectedMonth}/{selectedYear}</p>
+                  <button onClick={() => handleOpenShowModal()} className="text-xs font-semibold text-[#f3ece4] hover:underline">+ Tạo lịch chụp mới ngay</button>
                 </div>
               ) : (
                 currentMonthShows.map((show) => {
                   const totalExp = calculateShowTotalExpenses(show);
                   const profit = (show.totalAmount || 0) - totalExp;
                   const otherExpensesSum = (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-                  const dateStr = show.endDate && show.endDate !== show.date 
-                    ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}`
-                    : new Date(show.date).toLocaleDateString('vi-VN');
+                  const dateStr = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
 
                   return (
                     <div key={show.id} className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-4 shadow-2xs space-y-3 hover:border-[#3c342c] transition">
@@ -1084,7 +943,6 @@ export default function App() {
                           <p className="text-[#c9bbaE] font-medium mt-1">📍 {show.location || 'Chưa cập nhật'}</p>
                         </div>
 
-                        {/* Ekip list with conditional Paid Checkbox */}
                         <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] space-y-1.5">
                           <span className="font-semibold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip & Lương:</span>
                           <div className="space-y-1.5 text-[#c9bbaE]">
@@ -1099,47 +957,22 @@ export default function App() {
                                   </div>
                                   {memberPay > 0 && (
                                     <div className="flex items-center gap-1 shrink-0 bg-[#24201c] px-2 py-1 rounded border border-[#4d4237]">
-                                      <input
-                                        type="checkbox"
-                                        id={`list-paid-${show.id}-${memberIdentifier}`}
-                                        checked={!!member.paid}
-                                        onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)}
-                                        className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer"
-                                      />
-                                      <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">
-                                        {member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}
-                                      </label>
+                                      <input type="checkbox" id={`list-paid-${show.id}-${memberIdentifier}`} checked={!!member.paid} onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)} className="w-3.5 h-3.5 rounded accent-[#86efac] cursor-pointer" />
+                                      <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#f9f6f0] select-none">{member.paid ? <span className="text-[#86efac]">Đã trả</span> : <span className="text-[#a3978b]">Chưa trả</span>}</label>
                                     </div>
                                   )}
                                 </div>
                               );
                             })}
-                            {getNormalizeCrewList(show.assignedStaff).length === 0 && (
-                              <span className="text-[#6b625b] italic">Chưa phân công</span>
-                            )}
+                            {getNormalizeCrewList(show.assignedStaff).length === 0 && (<span className="text-[#6b625b] italic">Chưa phân công</span>)}
                           </div>
                         </div>
 
-                        {/* Financial summary for single show */}
                         <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] flex flex-col justify-between space-y-1">
-                          <div className="flex justify-between text-[#c9bbaE]">
-                            <span>Doanh Thu HĐ:</span>
-                            <span className="font-bold text-[#f9f6f0]">{formatCurrency(show.totalAmount)}</span>
-                          </div>
-                          {otherExpensesSum > 0 && (
-                            <div className="flex justify-between text-[#a3978b] text-[11px]">
-                              <span>Chi phí phát sinh:</span>
-                              <span className="font-semibold text-rose-300">-{formatCurrency(otherExpensesSum)}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between text-[#c9bbaE]">
-                            <span>Tổng Chi Phí Show:</span>
-                            <span className="font-semibold text-rose-300">-{formatCurrency(totalExp)}</span>
-                          </div>
-                          <div className="flex justify-between border-t border-[#2c251e] pt-1 font-semibold">
-                            <span className="text-[#f9f6f0]">Lợi Nhuận:</span>
-                            <span className="text-[#86efac]">{formatCurrency(profit)}</span>
-                          </div>
+                          <div className="flex justify-between text-[#c9bbaE]"><span>Doanh Thu HĐ:</span><span className="font-bold text-[#f9f6f0]">{formatCurrency(show.totalAmount)}</span></div>
+                          {otherExpensesSum > 0 && (<div className="flex justify-between text-[#a3978b] text-[11px]"><span>Chi phí phát sinh:</span><span className="font-semibold text-rose-300">-{formatCurrency(otherExpensesSum)}</span></div>)}
+                          <div className="flex justify-between text-[#c9bbaE]"><span>Tổng Chi Phí Show:</span><span className="font-semibold text-rose-300">-{formatCurrency(totalExp)}</span></div>
+                          <div className="flex justify-between border-t border-[#2c251e] pt-1 font-semibold"><span className="text-[#f9f6f0]">Lợi Nhuận:</span><span className="text-[#86efac]">{formatCurrency(profit)}</span></div>
                         </div>
                       </div>
                     </div>
@@ -1157,18 +990,12 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
-                  <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm (Không bao gồm lịch thử váy và khách hỏi)</p>
+                  <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">
-                    {yearlyStats.annualSummary.totalShows} Show cả năm
-                  </span>
-                  <button
-                    onClick={handleExportYearlyExcel}
-                    className="bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#86efac] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
-                  >
-                    <Icons.Download className="w-4 h-4" />
-                    <span>Xuất Excel Báo Cáo Năm</span>
+                  <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">{yearlyStats.annualSummary.totalShows} Show cả năm</span>
+                  <button onClick={handleExportYearlyExcel} className="bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#86efac] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer">
+                    <Icons.Download className="w-4 h-4" /><span>Xuất Excel Báo Cáo Năm</span>
                   </button>
                 </div>
               </div>
@@ -1176,26 +1003,15 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-[#24201c]/60 p-3.5 rounded-xl border border-[#2c251e] space-y-1">
                   <span className="text-xs text-[#a3978b] font-medium uppercase tracking-wider">Tổng Doanh Thu Năm</span>
-                  <div className="text-lg sm:text-xl font-bold text-[#f9f6f0]">
-                    {formatCurrency(yearlyStats.annualSummary.totalRevenue)}
-                  </div>
+                  <div className="text-lg sm:text-xl font-bold text-[#f9f6f0]">{formatCurrency(yearlyStats.annualSummary.totalRevenue)}</div>
                 </div>
-
                 <div className="bg-[#24201c]/60 p-3.5 rounded-xl border border-[#2c251e] space-y-1">
                   <span className="text-xs text-rose-300 font-medium uppercase tracking-wider">Tổng Chi Phí Năm</span>
-                  <div className="text-lg sm:text-xl font-bold text-rose-300">
-                    {formatCurrency(yearlyStats.annualSummary.totalExpenses)}
-                  </div>
-                  <p className="text-[10px] text-[#a3978b] pt-1">
-                    Lương thợ: {formatCurrencyCompact(yearlyStats.annualSummary.totalStaffPay)} | Khác: {formatCurrencyCompact(yearlyStats.annualSummary.totalOtherExpenses)}
-                  </p>
+                  <div className="text-lg sm:text-xl font-bold text-rose-300">{formatCurrency(yearlyStats.annualSummary.totalExpenses)}</div>
                 </div>
-
                 <div className="bg-[#24201c]/60 p-3.5 rounded-xl border border-[#2c251e] space-y-1">
                   <span className="text-xs text-[#86efac] font-medium uppercase tracking-wider">Tổng Lợi Nhuận Ròng Năm</span>
-                  <div className="text-lg sm:text-xl font-bold text-[#86efac]">
-                    {formatCurrency(yearlyStats.annualSummary.totalProfit)}
-                  </div>
+                  <div className="text-lg sm:text-xl font-bold text-[#86efac]">{formatCurrency(yearlyStats.annualSummary.totalProfit)}</div>
                 </div>
               </div>
             </div>
@@ -1203,7 +1019,7 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-4 sm:p-6 shadow-2xs space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-[#f9f6f0]">Chi Tiết Theo Từng Tháng</h3>
-                <p className="text-xs text-[#a3978b] font-medium">Bấm vào từng tháng để xem chi tiết doanh thu và lương nhân sự</p>
+                <p className="text-xs text-[#a3978b] font-medium">Bấm vào từng tháng để xem chi tiết</p>
               </div>
 
               <div className="space-y-3">
@@ -1219,13 +1035,11 @@ export default function App() {
                         <div className="flex flex-col sm:flex-row justify-between text-xs font-bold text-[#f9f6f0] gap-1">
                           <div className="flex items-center gap-2">
                             <span>Tháng {item.month} ({item.count} show)</span>
-                            <span className="text-[10px] font-semibold text-[#c9bbaE] bg-[#26211c] px-2 py-0.5 rounded-full border border-[#3c342c]">
-                              {isExpanded ? '▲ Thu gọn' : '▼ Xem chi tiết'}
-                            </span>
+                            <span className="text-[10px] font-semibold text-[#c9bbaE] bg-[#26211c] px-2 py-0.5 rounded-full border border-[#3c342c]">{isExpanded ? '▲ Thu gọn' : '▼ Xem chi tiết'}</span>
                           </div>
                           <div className="flex gap-3 text-xs font-semibold">
                             <span className="text-[#f9f6f0]">Doanh thu: {formatCurrencyCompact(item.revenue)}</span>
-                            <span className="text-rose-300">Chi phí: {formatCurrencyCompact(item.expenses)} (Lương: {formatCurrencyCompact(item.staffPayExpenses)})</span>
+                            <span className="text-rose-300">Chi phí: {formatCurrencyCompact(item.expenses)}</span>
                             <span className="text-[#86efac]">Lợi nhuận: {formatCurrencyCompact(item.profit)}</span>
                           </div>
                         </div>
@@ -1240,40 +1054,24 @@ export default function App() {
                             <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân Bổ Doanh Thu Tháng {item.month}</span>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                               <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-3 h-3 rounded-full bg-[#3e5244]"></span>
-                                  <span className="font-bold text-[#c9bbaE]">Doanh thu Chụp Ảnh</span>
-                                </div>
-                                <span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.photoRevenue)}</span>
+                                <span className="font-bold text-[#c9bbaE]">Doanh thu Chụp Ảnh</span><span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.photoRevenue)}</span>
                               </div>
                               <div className="bg-[#1b1815] p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-3 h-3 rounded-full bg-[#703f47]"></span>
-                                  <span className="font-bold text-[#c9bbaE]">Doanh thu Makeup</span>
-                                </div>
-                                <span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.makeupRevenue)}</span>
+                                <span className="font-bold text-[#c9bbaE]">Doanh thu Makeup</span><span className="font-bold text-[#f9f6f0] text-sm">{formatCurrency(item.makeupRevenue)}</span>
                               </div>
                             </div>
                           </div>
 
                           <div className="space-y-2">
                             <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Thống Kê Show & Lương Ekip Trong Tháng</span>
-                            {staffListEntries.length === 0 ? (
-                              <p className="text-[#6b625b] italic">Không có dữ liệu nhân sự làm việc trong tháng này.</p>
-                            ) : (
+                            {staffListEntries.length === 0 ? (<p className="text-[#6b625b] italic">Không có dữ liệu nhân sự.</p>) : (
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                                 {staffListEntries.map(([name, totalPay]) => {
                                   const showCount = item.staffShowCounts[name] || 0;
                                   return (
                                     <div key={name} className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] flex flex-col justify-between space-y-1">
-                                      <div className="flex justify-between items-center">
-                                        <span className="font-bold text-[#c9bbaE]">👤 {name}</span>
-                                        <span className="text-[10px] font-semibold bg-[#26211c] text-[#c9bbaE] px-2 py-0.5 rounded-full border border-[#3c342c]">{showCount} show</span>
-                                      </div>
-                                      <div className="flex justify-between items-center pt-1 border-t border-[#25201b]">
-                                        <span className="text-[#a3978b] text-[11px]">Tổng lương:</span>
-                                        <span className="font-bold text-rose-300">{formatCurrency(totalPay)}</span>
-                                      </div>
+                                      <div className="flex justify-between items-center"><span className="font-bold text-[#c9bbaE]">👤 {name}</span><span className="text-[10px] font-semibold bg-[#26211c] text-[#c9bbaE] px-2 py-0.5 rounded-full border border-[#3c342c]">{showCount} show</span></div>
+                                      <div className="flex justify-between items-center pt-1 border-t border-[#25201b]"><span className="text-[#a3978b] text-[11px]">Tổng lương:</span><span className="font-bold text-rose-300">{formatCurrency(totalPay)}</span></div>
                                     </div>
                                   );
                                 })}
@@ -1297,26 +1095,17 @@ export default function App() {
               <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Đội Ngũ Nhân Sự</h2>
-                  <p className="text-xs text-[#a3978b] font-medium">Bấm vào tên nhân sự để xem lịch chụp và thanh toán lương năm {selectedYear}</p>
+                  <p className="text-xs text-[#a3978b] font-medium">Bấm vào tên nhân sự để xem lịch chụp và lương năm {selectedYear}</p>
                 </div>
-                <button
-                  onClick={() => handleOpenStaffModal(null)}
-                  className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-[#332b24] transition"
-                >
+                <button onClick={() => handleOpenStaffModal(null)} className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-[#332b24] transition">
                   <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Nhân Sự
                 </button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {staffList.map((st) => (
-                  <div 
-                    key={st.id} 
-                    className="bg-[#24201c]/50 p-3 rounded-lg border border-[#2c251e] flex justify-between items-center transition group hover:border-[#6b5d52]"
-                  >
-                    <div 
-                      onClick={() => setSelectedStaffForModal(st)}
-                      className="cursor-pointer flex-1 pr-2"
-                    >
+                  <div key={st.id} className="bg-[#24201c]/50 p-3 rounded-lg border border-[#2c251e] flex justify-between items-center transition group hover:border-[#6b5d52]">
+                    <div onClick={() => setSelectedStaffForModal(st)} className="cursor-pointer flex-1 pr-2">
                       <h4 className="font-bold text-xs text-[#f9f6f0] group-hover:text-[#86efac] transition flex items-center gap-1.5">
                         <span>👤</span> {st.name} <span className="text-[10px] text-[#86efac] font-normal">(Xem lịch & lương ➔)</span>
                       </h4>
@@ -1325,20 +1114,8 @@ export default function App() {
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      <button 
-                        onClick={() => handleOpenStaffModal(st)} 
-                        className="p-1.5 hover:bg-[#1b1815] rounded-lg text-[#c9bbaE] border border-[#3c342c]"
-                        title="Sửa thông tin nhân sự"
-                      >
-                        <Icons.Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteStaff(st.id)} 
-                        className="p-1.5 hover:bg-[#3d2524] rounded-lg text-rose-300 border border-[#4d302e]"
-                        title="Xóa nhân sự"
-                      >
-                        <Icons.Trash2 className="w-4 h-4" />
-                      </button>
+                      <button onClick={() => handleOpenStaffModal(st)} className="p-1.5 hover:bg-[#1b1815] rounded-lg text-[#c9bbaE] border border-[#3c342c]" title="Sửa thông tin"><Icons.Edit className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteStaff(st.id)} className="p-1.5 hover:bg-[#3d2524] rounded-lg text-rose-300 border border-[#4d302e]" title="Xóa"><Icons.Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -1348,8 +1125,8 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - Lịch "Có khách hỏi" (màu vàng) và "Thử váy và trao đổi với khách" (màu xanh dương) dùng để note lịch hẹn, hoàn toàn miễn phí và không tính vào doanh thu.<br/>
-                - Múi giờ hệ thống tự động đồng bộ theo giờ Việt Nam (GMT+7).
+                - Lịch "Có khách hỏi" (màu vàng) và "Thử váy" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
+                - Mọi lịch tạo mới sẽ tự động đồng bộ sang Google Calendar cá nhân nếu đã kết nối.
               </p>
             </div>
           </div>
@@ -1361,35 +1138,18 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3">
           <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-xl w-full max-w-sm overflow-hidden">
             <div className="p-4 border-b border-[#2c251e] flex justify-between items-center bg-[#1b1815]">
-              <h3 className="font-bold text-sm text-[#f9f6f0]">
-                {editingStaff ? 'Chỉnh Sửa Thông Tin Nhân Sự' : 'Thêm Nhân Sự Mới'}
-              </h3>
-              <button onClick={() => setIsStaffModalOpen(false)} className="text-[#a3978b] hover:text-[#f9f6f0]">
-                <Icons.X className="w-5 h-5" />
-              </button>
+              <h3 className="font-bold text-sm text-[#f9f6f0]">{editingStaff ? 'Chỉnh Sửa Thông Tin Nhân Sự' : 'Thêm Nhân Sự Mới'}</h3>
+              <button onClick={() => setIsStaffModalOpen(false)} className="text-[#a3978b] hover:text-[#f9f6f0]"><Icons.X className="w-5 h-5" /></button>
             </div>
 
             <form onSubmit={handleSaveStaff} autoComplete="off" className="p-4 space-y-3 text-xs">
               <div>
                 <label className="block font-bold text-[#c9bbaE] mb-1">Tên Nhân Sự *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="VD: Nguyễn Văn A"
-                  value={staffFormData.name}
-                  onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
-                />
+                <input type="text" required placeholder="VD: Nguyễn Văn A" value={staffFormData.name} onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]" />
               </div>
               <div>
                 <label className="block font-bold text-[#c9bbaE] mb-1">Vị Trí Chuyên Môn</label>
-                <select
-                  value={staffFormData.role}
-                  onChange={(e) => setStaffFormData({ ...staffFormData, role: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
-                >
+                <select value={staffFormData.role} onChange={(e) => setStaffFormData({ ...staffFormData, role: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]">
                   <option value="Photo">Photo</option>
                   <option value="Quay phim">Quay phim</option>
                   <option value="Makeup">Makeup</option>
@@ -1399,30 +1159,19 @@ export default function App() {
               </div>
               <div>
                 <label className="block font-bold text-[#c9bbaE] mb-1">Số Điện Thoại</label>
-                <input
-                  type="text"
-                  placeholder="0901234567"
-                  value={staffFormData.phone}
-                  onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]"
-                />
+                <input type="text" placeholder="0901234567" value={staffFormData.phone} onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1.5 bg-[#24201c] border border-[#3c342c] rounded-lg font-semibold text-[#f9f6f0]" />
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-[#2c251e]">
-                <button type="button" onClick={() => setIsStaffModalOpen(false)} className="px-3.5 py-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE]">
-                  Hủy
-                </button>
-                <button type="submit" className="px-4 py-1.5 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded-lg font-semibold">
-                  {editingStaff ? 'Lưu Thay Đổi' : 'Thêm Nhân Sự'}
-                </button>
+                <button type="button" onClick={() => setIsStaffModalOpen(false)} className="px-3.5 py-1.5 border border-[#3c342c] rounded-lg text-[#c9bbaE]">Hủy</button>
+                <button type="submit" className="px-4 py-1.5 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded-lg font-semibold">{editingStaff ? 'Lưu Thay Đổi' : 'Thêm Nhân Sự'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL: STAFF YEARLY SCHEDULE & PAID SALARY TICK CHECKBOX */}
+      {/* MODAL: STAFF YEARLY SCHEDULE */}
       {selectedStaffForModal && (
         <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-2xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
@@ -1431,20 +1180,14 @@ export default function App() {
                 <h3 className="font-bold text-sm text-[#f9f6f0]">Lịch Chụp & Lương Năm {selectedYear} Của: <span className="text-[#86efac]">{selectedStaffForModal.name}</span></h3>
                 <p className="text-xs text-[#a3978b] font-medium mt-0.5">Chuyên môn: {selectedStaffForModal.role}</p>
               </div>
-              <button onClick={() => setSelectedStaffForModal(null)} className="text-[#a3978b] hover:text-[#f9f6f0] p-1">
-                <Icons.X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setSelectedStaffForModal(null)} className="text-[#a3978b] hover:text-[#f9f6f0] p-1"><Icons.X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-3">
               {(() => {
                 const staffShows = getStaffYearlyShows(selectedStaffForModal.name);
                 if (staffShows.length === 0) {
-                  return (
-                    <div className="text-center py-8 space-y-2">
-                      <p className="text-xs text-[#a3978b] italic">Nhân sự này chưa có lịch chụp có lương nào trong năm {selectedYear}.</p>
-                    </div>
-                  );
+                  return (<div className="text-center py-8 space-y-2"><p className="text-xs text-[#a3978b] italic">Nhân sự này chưa có lịch chụp nào trong năm {selectedYear}.</p></div>);
                 }
 
                 const totalYearPay = staffShows.reduce((acc, curr) => acc + Number(curr.pay || 0), 0);
@@ -1454,7 +1197,7 @@ export default function App() {
                   <div className="space-y-3 text-xs">
                     <div className="bg-[#24201c]/70 p-3 rounded-xl border border-[#2c251e] flex justify-between items-center">
                       <div>
-                        <span className="text-[#a3978b] block">Tổng Show có lương: <strong className="text-[#f9f6f0]">{staffShows.length} show</strong></span>
+                        <span className="text-[#a3978b] block">Tổng Show: <strong className="text-[#f9f6f0]">{staffShows.length} show</strong></span>
                         <span className="text-[#a3978b] block mt-0.5">Tổng lương năm: <strong className="text-rose-300">{formatCurrency(totalYearPay)}</strong></span>
                       </div>
                       <div className="text-right">
@@ -1465,17 +1208,12 @@ export default function App() {
 
                     <div className="space-y-2 max-h-[48vh] overflow-y-auto pr-1">
                       {staffShows.map((item, idx) => {
-                        const dateText = item.endDate && item.endDate !== item.date
-                          ? `${new Date(item.date).toLocaleDateString('vi-VN')} ➔ ${new Date(item.endDate).toLocaleDateString('vi-VN')}`
-                          : new Date(item.date).toLocaleDateString('vi-VN');
-
+                        const dateText = item.endDate && item.endDate !== item.date ? `${new Date(item.date).toLocaleDateString('vi-VN')} ➔ ${new Date(item.endDate).toLocaleDateString('vi-VN')}` : new Date(item.date).toLocaleDateString('vi-VN');
                         return (
                           <div key={item.id + '-' + (item.memberId || idx)} className={`p-3 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 transition ${item.paid ? 'bg-[#202c24]/40 border-[#2e4d38]' : 'bg-[#24201c]/60 border-[#2c251e]'}`}>
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[10px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">
-                                  📅 {dateText}
-                                </span>
+                                <span className="text-[10px] font-semibold bg-[#1b1815] border border-[#3c342c] text-[#c9bbaE] px-2 py-0.5 rounded">📅 {dateText}</span>
                                 <span className="font-bold text-[#f9f6f0]">{item.packageType}</span>
                               </div>
                               <p className="text-[#a3978b] font-medium">Khách: {item.clientName}</p>
@@ -1483,16 +1221,8 @@ export default function App() {
                             </div>
 
                             <div className="flex items-center gap-2 self-end sm:self-auto bg-[#1b1815] px-3 py-1.5 rounded-lg border border-[#3c342c]">
-                              <input
-                                type="checkbox"
-                                id={`paid-chk-${item.id}-${item.memberId}`}
-                                checked={!!item.paid}
-                                onChange={() => handleToggleStaffPaid(item.id, item.memberId, item.paid)}
-                                className="w-4 h-4 rounded accent-[#86efac] cursor-pointer"
-                              />
-                              <label htmlFor={`paid-chk-${item.id}-${item.memberId}`} className="cursor-pointer font-semibold text-[11px] select-none text-[#f9f6f0]">
-                                {item.paid ? <span className="text-[#86efac]">Đã trả lương</span> : <span className="text-[#a3978b]">Chưa trả lương</span>}
-                              </label>
+                              <input type="checkbox" id={`paid-chk-${item.id}-${item.memberId}`} checked={!!item.paid} onChange={() => handleToggleStaffPaid(item.id, item.memberId, item.paid)} className="w-4 h-4 rounded accent-[#86efac] cursor-pointer" />
+                              <label htmlFor={`paid-chk-${item.id}-${item.memberId}`} className="cursor-pointer font-semibold text-[11px] select-none text-[#f9f6f0]">{item.paid ? <span className="text-[#86efac]">Đã trả lương</span> : <span className="text-[#a3978b]">Chưa trả lương</span>}</label>
                             </div>
                           </div>
                         );
@@ -1504,12 +1234,7 @@ export default function App() {
             </div>
 
             <div className="pt-2 border-t border-[#2c251e] flex justify-end">
-              <button
-                onClick={() => setSelectedStaffForModal(null)}
-                className="px-4 py-1.5 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded-xl text-xs font-semibold hover:bg-[#332b24]"
-              >
-                Đóng
-              </button>
+              <button onClick={() => setSelectedStaffForModal(null)} className="px-4 py-1.5 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded-xl text-xs font-semibold hover:bg-[#332b24]">Đóng</button>
             </div>
           </div>
         </div>
@@ -1521,42 +1246,23 @@ export default function App() {
           <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-xl w-full max-w-lg my-6 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-3.5 border-b border-[#2c251e] flex justify-between items-center bg-[#1b1815] shrink-0">
               <h3 className="font-bold text-xs text-[#f9f6f0]">{editingShow ? 'Chỉnh Sửa Lịch Hẹn / Show' : 'Tạo Lịch Hẹn / Show Mới'}</h3>
-              <button onClick={() => setIsShowModalOpen(false)} className="text-[#a3978b] hover:text-[#f9f6f0]">
-                <Icons.X className="w-4 h-4" />
-              </button>
+              <button onClick={() => setIsShowModalOpen(false)} className="text-[#a3978b] hover:text-[#f9f6f0]"><Icons.X className="w-4 h-4" /></button>
             </div>
 
             <form onSubmit={handleSaveShow} autoComplete="off" className="p-3.5 sm:p-4 space-y-2.5 overflow-y-auto flex-1 text-[11px]">
               <div className="space-y-2.5">
                 <div className="space-y-1">
                   <label className="block text-[11px] font-bold text-[#c9bbaE]">Tên Khách Hàng *</label>
-                  <input
-                    type="text"
-                    required
-                    value={showFormData.clientName}
-                    onChange={(e) => setShowFormData({ ...showFormData, clientName: e.target.value })}
-                    style={{ fontSize: '16px' }}
-                    className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                  />
+                  <input type="text" required value={showFormData.clientName} onChange={(e) => setShowFormData({ ...showFormData, clientName: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none" />
                 </div>
                 <div className="space-y-1">
                   <label className="block text-[11px] font-bold text-[#c9bbaE]">Số Điện Thoại</label>
-                  <input
-                    type="text"
-                    value={showFormData.clientPhone}
-                    onChange={(e) => setShowFormData({ ...showFormData, clientPhone: e.target.value })}
-                    style={{ fontSize: '16px' }}
-                    className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                  />
+                  <input type="text" value={showFormData.clientPhone} onChange={(e) => setShowFormData({ ...showFormData, clientPhone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none" />
                 </div>
 
-                {/* Khoảng ngày chụp (Booking.com style) */}
                 <div className="space-y-1 relative">
                   <label className="block text-[11px] font-bold text-[#c9bbaE]">Khoảng Ngày Lịch (Từ ngày ➔ Đến ngày) *</label>
-                  <div 
-                    onClick={() => setIsDateRangePickerOpen(!isDateRangePickerOpen)}
-                    className="w-full px-3 py-2 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] flex items-center justify-between cursor-pointer hover:border-[#86efac] transition"
-                  >
+                  <div onClick={() => setIsDateRangePickerOpen(!isDateRangePickerOpen)} className="w-full px-3 py-2 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] flex items-center justify-between cursor-pointer hover:border-[#86efac] transition">
                     <div className="flex items-center gap-2">
                       <Icons.Calendar className="w-4 h-4 text-[#c9bbaE]" />
                       <span>
@@ -1568,44 +1274,15 @@ export default function App() {
                     <span className="text-[10px] text-[#86efac] bg-[#26211c] px-2 py-0.5 rounded border border-[#3c342c]">Chọn lịch ▾</span>
                   </div>
 
-                  {/* Popover chọn ngày Booking.com style */}
                   {isDateRangePickerOpen && (
                     <div className="absolute left-0 top-full mt-1.5 z-50 bg-[#1b1815] border border-[#3c342c] rounded-2xl shadow-2xl p-4 w-full sm:w-[340px] space-y-3">
                       <div className="flex justify-between items-center border-b border-[#2c251e] pb-2">
                         <div className="flex items-center gap-1">
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              if (pickerMonth === 1) { setPickerMonth(12); setPickerYear(pickerYear - 1); }
-                              else { setPickerMonth(pickerMonth - 1); }
-                            }}
-                            className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]"
-                          >
-                            <Icons.ChevronLeft className="w-4 h-4" />
-                          </button>
+                          <button type="button" onClick={() => { if (pickerMonth === 1) { setPickerMonth(12); setPickerYear(pickerYear - 1); } else { setPickerMonth(pickerMonth - 1); } }} className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]"><Icons.ChevronLeft className="w-4 h-4" /></button>
                           <span className="font-bold text-xs text-[#f9f6f0]">Tháng {pickerMonth} / {pickerYear}</span>
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              if (pickerMonth === 12) { setPickerMonth(1); setPickerYear(pickerYear + 1); }
-                              else { setPickerMonth(pickerMonth + 1); }
-                            }}
-                            className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]"
-                          >
-                            <Icons.ChevronRight className="w-4 h-4" />
-                          </button>
+                          <button type="button" onClick={() => { if (pickerMonth === 12) { setPickerMonth(1); setPickerYear(pickerYear + 1); } else { setPickerMonth(pickerMonth + 1); } }} className="p-1 rounded hover:bg-[#26211c] text-[#c9bbaE]"><Icons.ChevronRight className="w-4 h-4" /></button>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => setIsDateRangePickerOpen(false)}
-                          className="text-xs text-[#a3978b] hover:text-[#f9f6f0]"
-                        >
-                          ✕ Đóng
-                        </button>
-                      </div>
-
-                      <div className="text-[10px] text-[#a3978b] bg-[#24201c] p-2 rounded border border-[#2c251e] text-center">
-                        {!showFormData.date ? 'Bấm chọn ngày BẮT ĐẦU' : (!showFormData.endDate || showFormData.endDate === showFormData.date ? 'Bấm chọn ngày KẾT THÚC' : 'Đã chọn xong khoảng ngày!')}
+                        <button type="button" onClick={() => setIsDateRangePickerOpen(false)} className="text-xs text-[#a3978b] hover:text-[#f9f6f0]">✕ Đóng</button>
                       </div>
 
                       <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#a3978b] mb-1">
@@ -1620,9 +1297,7 @@ export default function App() {
                           if (startDow === -1) startDow = 6;
 
                           const cells = [];
-                          for (let i = 0; i < startDow; i++) {
-                            cells.push(<div key={'empty-' + i} />);
-                          }
+                          for (let i = 0; i < startDow; i++) { cells.push(<div key={'empty-' + i} />); }
 
                           for (let d = 1; d <= numDays; d++) {
                             const dateStr = `${pickerYear}-${String(pickerMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -1631,55 +1306,24 @@ export default function App() {
                             const isInRange = showFormData.date && showFormData.endDate && dateStr > showFormData.date && dateStr < showFormData.endDate;
 
                             let btnStyle = "bg-[#24201c] text-[#f3ece4] hover:bg-[#332b24]";
-                            if (isStart || isEnd) {
-                              btnStyle = "bg-[#d4c5b9] text-[#141210] font-bold shadow-xs";
-                            } else if (isInRange) {
-                              btnStyle = "bg-[#383028] text-[#f9f6f0]";
-                            }
+                            if (isStart || isEnd) btnStyle = "bg-[#d4c5b9] text-[#141210] font-bold shadow-xs";
+                            else if (isInRange) btnStyle = "bg-[#383028] text-[#f9f6f0]";
 
                             cells.push(
-                              <button
-                                key={dateStr}
-                                type="button"
-                                onClick={() => {
-                                  if (!showFormData.date || (showFormData.date && showFormData.endDate && showFormData.endDate !== showFormData.date)) {
-                                    setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
-                                  } else if (dateStr < showFormData.date) {
-                                    setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
-                                  } else {
-                                    setShowFormData({ ...showFormData, endDate: dateStr });
-                                    setIsDateRangePickerOpen(false);
-                                  }
-                                }}
-                                className={`py-1.5 rounded-md font-semibold transition ${btnStyle}`}
-                              >
-                                {d}
-                              </button>
+                              <button key={dateStr} type="button" onClick={() => {
+                                if (!showFormData.date || (showFormData.date && showFormData.endDate && showFormData.endDate !== showFormData.date)) {
+                                  setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
+                                } else if (dateStr < showFormData.date) {
+                                  setShowFormData({ ...showFormData, date: dateStr, endDate: dateStr });
+                                } else {
+                                  setShowFormData({ ...showFormData, endDate: dateStr });
+                                  setIsDateRangePickerOpen(false);
+                                }
+                              }} className={`py-1.5 rounded-md font-semibold transition ${btnStyle}`}>{d}</button>
                             );
                           }
                           return cells;
                         })()}
-                      </div>
-
-                      <div className="flex justify-between items-center pt-2 border-t border-[#2c251e] text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const today = getVietnamTodayStr();
-                            setShowFormData({ ...showFormData, date: today, endDate: today });
-                            setIsDateRangePickerOpen(false);
-                          }}
-                          className="text-[#c9bbaE] hover:underline"
-                        >
-                          Chọn hôm nay
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsDateRangePickerOpen(false)}
-                          className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1 rounded-lg font-semibold"
-                        >
-                          Xác nhận
-                        </button>
                       </div>
                     </div>
                   )}
@@ -1687,224 +1331,93 @@ export default function App() {
 
                 <div className="space-y-1">
                   <label className="block text-[11px] font-bold text-[#c9bbaE]">Gói Dịch Vụ</label>
-                  <select
-                    value={showFormData.packageType}
-                    onChange={(e) => setShowFormData({ ...showFormData, packageType: e.target.value })}
-                    style={{ fontSize: '16px' }}
-                    className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                  >
+                  <select value={showFormData.packageType} onChange={(e) => setShowFormData({ ...showFormData, packageType: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none">
                     <option value="" className="bg-[#1b1815] text-[#a3978b]">-- Chọn Gói Dịch Vụ --</option>
-                    {PACKAGES.map((pkg) => (
-                      <option key={pkg} value={pkg} className="bg-[#1b1815] text-[#f3ece4]">{pkg}</option>
-                    ))}
+                    {PACKAGES.map((pkg) => (<option key={pkg} value={pkg} className="bg-[#1b1815] text-[#f3ece4]">{pkg}</option>))}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <label className="block text-[11px] font-bold text-[#c9bbaE]">Giờ Bắt Đầu</label>
-                    <input
-                      type="time"
-                      value={showFormData.startTime}
-                      onChange={(e) => setShowFormData({ ...showFormData, startTime: e.target.value })}
-                      style={{ fontSize: '16px' }}
-                      className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                    />
+                    <input type="time" value={showFormData.startTime} onChange={(e) => setShowFormData({ ...showFormData, startTime: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none" />
                   </div>
                   <div className="space-y-1">
                     <label className="block text-[11px] font-bold text-[#c9bbaE]">Giờ Kết Thúc</label>
-                    <input
-                      type="time"
-                      value={showFormData.endTime}
-                      onChange={(e) => setShowFormData({ ...showFormData, endTime: e.target.value })}
-                      style={{ fontSize: '16px' }}
-                      className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                    />
+                    <input type="time" value={showFormData.endTime} onChange={(e) => setShowFormData({ ...showFormData, endTime: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none" />
                   </div>
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label className="block text-[11px] font-bold text-[#c9bbaE]">Địa Điểm</label>
-                <input
-                  type="text"
-                  value={showFormData.location}
-                  onChange={(e) => setShowFormData({ ...showFormData, location: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                />
+                <input type="text" value={showFormData.location} onChange={(e) => setShowFormData({ ...showFormData, location: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none" />
               </div>
 
               <div className="space-y-1">
                 <label className="block text-[11px] font-bold text-[#c9bbaE]">Ghi Chú Lịch Hẹn</label>
-                <textarea
-                  rows={2}
-                  value={showFormData.notes}
-                  onChange={(e) => setShowFormData({ ...showFormData, notes: e.target.value })}
-                  style={{ fontSize: '16px' }}
-                  className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none"
-                />
+                <textarea rows={2} value={showFormData.notes} onChange={(e) => setShowFormData({ ...showFormData, notes: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] focus:outline-none" />
               </div>
 
-              {/* Ekip Pay & Finance Input chỉ hiện nếu KHÔNG PHẢI gói không thương mại */}
               {!isNonCommercialPackage(showFormData.packageType) && (
                 <>
                   <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider">Phân công Ekip & Tiền công</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currentCrew = showFormData.assignedStaff.crewList || [];
-                          setShowFormData({
-                            ...showFormData,
-                            assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0, paid: false }] }
-                          });
-                        }}
-                        className="text-[10px] font-bold text-[#f9f6f0] bg-[#24201c] border border-[#6b5d52] px-2 py-0.5 rounded"
-                      >
-                        + Thêm Nhân Sự
-                      </button>
+                      <button type="button" onClick={() => { const currentCrew = showFormData.assignedStaff.crewList || []; setShowFormData({ ...showFormData, assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0, paid: false }] } }); }} className="text-[10px] font-bold text-[#f9f6f0] bg-[#24201c] border border-[#6b5d52] px-2 py-0.5 rounded">+ Thêm Nhân Sự</button>
                     </div>
 
                     <div className="space-y-1.5">
                       {(showFormData.assignedStaff.crewList || []).map((member, idx) => (
                         <div key={member.id || idx} className="bg-[#24201c]/40 p-2 rounded-lg border border-[#52443a] flex flex-col gap-1.5">
                           <div className="grid grid-cols-2 gap-1.5">
-                            <select
-                              value={member.role}
-                              onChange={(e) => {
-                                const updated = [...showFormData.assignedStaff.crewList];
-                                updated[idx].role = e.target.value;
-                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                              }}
-                              style={{ fontSize: '16px' }}
-                              className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]"
-                            >
-                              <option value="Photo">Photo</option>
-                              <option value="Video">Video</option>
-                              <option value="Makeup">Makeup</option>
-                              <option value="Làm tóc">Làm tóc</option>
-                              <option value="Freelance">Freelance</option>
+                            <select value={member.role} onChange={(e) => { const updated = [...showFormData.assignedStaff.crewList]; updated[idx].role = e.target.value; setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } }); }} style={{ fontSize: '16px' }} className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]">
+                              <option value="Photo">Photo</option><option value="Video">Video</option><option value="Makeup">Makeup</option><option value="Làm tóc">Làm tóc</option><option value="Freelance">Freelance</option>
                             </select>
-
-                            <select
-                              value={member.name}
-                              onChange={(e) => {
-                                const updated = [...showFormData.assignedStaff.crewList];
-                                updated[idx].name = e.target.value;
-                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                              }}
-                              style={{ fontSize: '16px' }}
-                              className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]"
-                            >
+                            <select value={member.name} onChange={(e) => { const updated = [...showFormData.assignedStaff.crewList]; updated[idx].name = e.target.value; setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } }); }} style={{ fontSize: '16px' }} className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]">
                               <option value="">-- Chọn Nhân Sự --</option>
-                              {staffList.map((st) => (
-                                <option key={st.id} value={st.name}>{st.name} ({st.role})</option>
-                              ))}
+                              {staffList.map((st) => (<option key={st.id} value={st.name}>{st.name} ({st.role})</option>))}
                             </select>
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            <input
-                              type="number"
-                              placeholder="0 đ"
-                              value={member.pay || ''}
-                              onChange={(e) => {
-                                const updated = [...showFormData.assignedStaff.crewList];
-                                updated[idx].pay = Number(e.target.value);
-                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                              }}
-                              style={{ fontSize: '16px' }}
-                              className="flex-1 px-2.5 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-bold text-rose-300"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const updated = showFormData.assignedStaff.crewList.filter((_, i) => i !== idx);
-                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                              }}
-                              className="text-[#a3978b] hover:text-rose-300 p-1 bg-[#1b1815] border border-[#6b5d52] rounded"
-                            >
-                              <Icons.X className="w-3.5 h-3.5" />
-                            </button>
+                            <input type="number" placeholder="0 đ" value={member.pay || ''} onChange={(e) => { const updated = [...showFormData.assignedStaff.crewList]; updated[idx].pay = Number(e.target.value); setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } }); }} style={{ fontSize: '16px' }} className="flex-1 px-2.5 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-bold text-rose-300" />
+                            <button type="button" onClick={() => { const updated = showFormData.assignedStaff.crewList.filter((_, i) => i !== idx); setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } }); }} className="text-[#a3978b] hover:text-rose-300 p-1 bg-[#1b1815] border border-[#6b5d52] rounded"><Icons.X className="w-3.5 h-3.5" /></button>
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  {/* Chi Phí Khác */}
                   <div className="space-y-1.5 border-t border-[#2c251e] pt-2.5">
                     <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider block">Chi Phí Khác</span>
                     <div className="space-y-1">
                       {(showFormData.expenses || []).map((exp) => (
                         <div key={exp.id} className="flex justify-between items-center bg-[#24201c]/40 p-1.5 rounded border border-[#52443a]">
                           <span className="font-medium text-[#c9bbaE] truncate pr-2">{exp.title}</span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="font-bold text-rose-300">-{formatCurrency(exp.amount)}</span>
-                            <button type="button" onClick={() => handleRemoveExpense(exp.id)} className="text-rose-300">
-                              <Icons.X className="w-3 h-3" />
-                            </button>
-                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0"><span className="font-bold text-rose-300">-{formatCurrency(exp.amount)}</span><button type="button" onClick={() => handleRemoveExpense(exp.id)} className="text-rose-300"><Icons.X className="w-3 h-3" /></button></div>
                         </div>
                       ))}
                     </div>
                     <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        placeholder="Tên chi phí"
-                        value={newExpenseTitle}
-                        onChange={(e) => setNewExpenseTitle(e.target.value)}
-                        style={{ fontSize: '16px' }}
-                        className="flex-1 px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded text-[#f9f6f0]"
-                      />
-                      <input
-                        type="number"
-                        placeholder="Số tiền"
-                        value={newExpenseAmount}
-                        onChange={(e) => setNewExpenseAmount(e.target.value)}
-                        style={{ fontSize: '16px' }}
-                        className="w-24 px-2 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-rose-300"
-                      />
-                      <button type="button" onClick={handleAddExpense} className="px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] text-[#f9f6f0] rounded">
-                        + Thêm
-                      </button>
+                      <input type="text" placeholder="Tên chi phí" value={newExpenseTitle} onChange={(e) => setNewExpenseTitle(e.target.value)} style={{ fontSize: '16px' }} className="flex-1 px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded text-[#f9f6f0]" />
+                      <input type="number" placeholder="Số tiền" value={newExpenseAmount} onChange={(e) => setNewExpenseAmount(e.target.value)} style={{ fontSize: '16px' }} className="w-24 px-2 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-rose-300" />
+                      <button type="button" onClick={handleAddExpense} className="px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] text-[#f9f6f0] rounded">+ Thêm</button>
                     </div>
                   </div>
 
-                  {/* Finance Input */}
                   <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
                     <div className="space-y-1">
                       <label className="block text-[11px] font-bold text-[#c9bbaE]">Giá Hợp Đồng (VNĐ)</label>
-                      <input
-                        type="number"
-                        value={showFormData.totalAmount || ''}
-                        onChange={(e) => setShowFormData({ ...showFormData, totalAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
-                        style={{ fontSize: '16px' }}
-                        className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
-                      />
+                      <input type="number" value={showFormData.totalAmount || ''} onChange={(e) => setShowFormData({ ...showFormData, totalAmount: e.target.value === '' ? 0 : Number(e.target.value) })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]" />
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[11px] font-bold text-[#c9bbaE]">Tiền Đặt Cọc (VNĐ)</label>
-                      <input
-                        type="number"
-                        value={showFormData.depositAmount || ''}
-                        onChange={(e) => setShowFormData({ ...showFormData, depositAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
-                        style={{ fontSize: '16px' }}
-                        className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
-                      />
+                      <input type="number" value={showFormData.depositAmount || ''} onChange={(e) => setShowFormData({ ...showFormData, depositAmount: e.target.value === '' ? 0 : Number(e.target.value) })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]" />
                     </div>
                     <div className="space-y-1">
                       <label className="block text-[11px] font-bold text-[#c9bbaE]">Trạng Thái</label>
-                      <select
-                        value={showFormData.status}
-                        onChange={(e) => setShowFormData({ ...showFormData, status: e.target.value })}
-                        style={{ fontSize: '16px' }}
-                        className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
-                      >
-                        <option value="Chưa cọc">Chưa cọc</option>
-                        <option value="Đã cọc">Đã cọc</option>
-                        <option value="Đã thanh toán">Đã thanh toán</option>
+                      <select value={showFormData.status} onChange={(e) => setShowFormData({ ...showFormData, status: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]">
+                        <option value="Chưa cọc">Chưa cọc</option><option value="Đã cọc">Đã cọc</option><option value="Đã thanh toán">Đã thanh toán</option>
                       </select>
                     </div>
                   </div>
@@ -1912,20 +1425,8 @@ export default function App() {
               )}
 
               <div className="flex justify-end gap-2 pt-2.5 border-t border-[#2c251e]">
-                <button 
-                  type="button" 
-                  onClick={() => { 
-                    const targetDate = showFormData.date;
-                    setIsShowModalOpen(false); 
-                    if (targetDate) openDayDetailByDate(targetDate);
-                  }} 
-                  className="px-3 py-1 border border-[#3c342c] rounded text-[#c9bbaE]"
-                >
-                  Hủy
-                </button>
-                <button type="submit" className="px-3 py-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded font-semibold">
-                  Lưu Lịch
-                </button>
+                <button type="button" onClick={() => { const targetDate = showFormData.date; setIsShowModalOpen(false); if (targetDate) openDayDetailByDate(targetDate); }} className="px-3 py-1 border border-[#3c342c] rounded text-[#c9bbaE]">Hủy</button>
+                <button type="submit" className="px-3 py-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded font-semibold">Lưu Lịch</button>
               </div>
             </form>
           </div>
@@ -1941,36 +1442,24 @@ export default function App() {
                 <h3 className="font-bold text-[#f9f6f0]">Lịch Ngày {new Date(selectedCalendarDay.dateStr).toLocaleDateString('vi-VN')}</h3>
                 <p className="text-xs text-[#a3978b] font-medium">Tổng số: {selectedCalendarDay.shows.length} lịch hẹn/show</p>
               </div>
-              <button onClick={() => setSelectedCalendarDay(null)} className="text-[#a3978b] hover:text-[#f9f6f0]">
-                <Icons.X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setSelectedCalendarDay(null)} className="text-[#a3978b] hover:text-[#f9f6f0]"><Icons.X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-3.5">
               {selectedCalendarDay.shows.length === 0 ? (
                 <div className="text-center py-6 space-y-3">
                   <p className="text-xs text-[#a3978b] font-medium">Chưa có lịch hẹn hoặc show nào trong ngày này.</p>
-                  <button
-                    onClick={() => {
-                      const dateStr = selectedCalendarDay.dateStr;
-                      setSelectedCalendarDay(null);
-                      handleOpenShowModal(null, dateStr);
-                    }}
-                    className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5"
-                  >
-                    <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Lịch Hẹn / Show Mới Cho Ngày Này
+                  <button onClick={() => { const dateStr = selectedCalendarDay.dateStr; setSelectedCalendarDay(null); handleOpenShowModal(null, dateStr); }} className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5">
+                    <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Lịch Mới Cho Ngày Này
                   </button>
                 </div>
               ) : (
                 selectedCalendarDay.shows.map((show) => {
                   const isNonComm = isNonCommercialPackage(show.packageType);
-                  const isTryDress = show.packageType === 'Thử váy và trao đổi với khách';
                   const totalPackage = Number(show.totalAmount || 0);
                   const deposit = Number(show.depositAmount || 0);
                   const remaining = totalPackage - deposit;
-                  const dateText = show.endDate && show.endDate !== show.date
-                    ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}`
-                    : new Date(show.date).toLocaleDateString('vi-VN');
+                  const dateText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
 
                   return (
                     <div key={show.id} className="bg-[#24201c]/40 p-3.5 rounded-xl border border-[#2c251e] space-y-3">
@@ -1984,57 +1473,23 @@ export default function App() {
                           <p className="text-xs text-[#c9bbaE] font-medium mt-0.5">📅 Thời gian: {dateText}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => { setSelectedCalendarDay(null); handleOpenShowModal(show); }} className="text-xs font-semibold text-[#c9bbaE] hover:underline flex items-center gap-1">
-                            <Icons.Edit className="w-3.5 h-3.5" /> Sửa
-                          </button>
-                          <button onClick={() => handleDeleteShow(show.id, selectedCalendarDay.dateStr)} className="text-rose-300 hover:text-rose-400 p-1 bg-[#1b1815] border border-[#4d302e] rounded-md" title="Xóa lịch này">
-                            <Icons.Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <button onClick={() => { setSelectedCalendarDay(null); handleOpenShowModal(show); }} className="text-xs font-semibold text-[#c9bbaE] hover:underline flex items-center gap-1"><Icons.Edit className="w-3.5 h-3.5" /> Sửa</button>
+                          <button onClick={() => handleDeleteShow(show.id, selectedCalendarDay.dateStr)} className="text-rose-300 hover:text-rose-400 p-1 bg-[#1b1815] border border-[#4d302e] rounded-md"><Icons.Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         <div className="bg-[#1b1815] p-2 rounded-lg border border-[#2c251e] flex items-center gap-1.5 text-[#c9bbaE]">
-                          <Icons.Clock className="w-3.5 h-3.5 text-[#a3978b] shrink-0" />
-                          <span><strong>Giờ:</strong> {show.startTime || '08:00'} - {show.endTime || '12:00'}</span>
+                          <Icons.Clock className="w-3.5 h-3.5 text-[#a3978b] shrink-0" /><span><strong>Giờ:</strong> {show.startTime || '08:00'} - {show.endTime || '12:00'}</span>
                         </div>
-                        <div className="bg-[#1b1815] p-2 rounded-lg border border-[#2c251e] text-[#c9bbaE] truncate">
-                          <span>📍 <strong>Địa điểm:</strong> {show.location || 'Chưa cập nhật'}</span>
-                        </div>
+                        <div className="bg-[#1b1815] p-2 rounded-lg border border-[#2c251e] text-[#c9bbaE] truncate"><span>📍 <strong>Địa điểm:</strong> {show.location || 'Chưa cập nhật'}</span></div>
                       </div>
 
                       {!isNonComm && (
                         <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1.5 text-xs">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[#a3978b] font-medium">Giá gói chụp:</span>
-                            <span className="font-bold text-[#f9f6f0]">{formatCurrency(totalPackage)}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-[#c9bbaE]">
-                            <span className="font-medium">Đã đặt cọc:</span>
-                            <span className="font-bold text-[#f9f6f0]">{formatCurrency(deposit)}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-rose-300 pt-1 border-t border-[#2c251e]">
-                            <span className="font-medium">Còn lại phải thu:</span>
-                            <span className="font-bold">{formatCurrency(remaining)}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {!isNonComm && (
-                        <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1 text-xs">
-                          <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block mb-1">Phân công Nhân sự & Tiền công:</span>
-                          {getNormalizeCrewList(show.assignedStaff).map((c, i) => (
-                            <div key={c.id || i} className="flex justify-between text-[#c9bbaE] border-b border-[#25201b] last:border-none py-0.5 items-center">
-                              <span>👤 {c.role}: <strong>{c.name}</strong></span>
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-rose-300">{formatCurrency(c.pay)}</span>
-                                {c.paid && <span className="text-[10px] bg-[#202c24] text-[#86efac] px-1.5 py-0.2 rounded border border-[#2e4d38]">Đã trả lương</span>}
-                              </div>
-                            </div>
-                          ))}
-                          {getNormalizeCrewList(show.assignedStaff).length === 0 && (
-                            <p className="text-[#6b625b] italic">Chưa phân công nhân sự</p>
-                          )}
+                          <div className="flex justify-between items-center"><span className="text-[#a3978b] font-medium">Giá gói chụp:</span><span className="font-bold text-[#f9f6f0]">{formatCurrency(totalPackage)}</span></div>
+                          <div className="flex justify-between items-center text-[#c9bbaE]"><span className="font-medium">Đã đặt cọc:</span><span className="font-bold text-[#f9f6f0]">{formatCurrency(deposit)}</span></div>
+                          <div className="flex justify-between items-center text-rose-300 pt-1 border-t border-[#2c251e]"><span className="font-medium">Còn lại phải thu:</span><span className="font-bold">{formatCurrency(remaining)}</span></div>
                         </div>
                       )}
 
@@ -2046,17 +1501,11 @@ export default function App() {
                       )}
 
                       <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#2c251e]">
-                        <button
-                          onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })}
-                          className="flex-1 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
-                        >
+                        <button onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })} className="flex-1 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
                           📄 Thông tin gửi Khách xác nhận
                         </button>
                         {!isNonComm && (
-                          <button
-                            onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })}
-                            className="flex-1 bg-[#1b1815] hover:bg-[#26211c] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
-                          >
+                          <button onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })} className="flex-1 bg-[#1b1815] hover:bg-[#26211c] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
                             👥 Thông tin gửi Nhân sự xác nhận
                           </button>
                         )}
@@ -2068,19 +1517,10 @@ export default function App() {
             </div>
 
             <div className="flex justify-between items-center pt-2 border-t border-[#2c251e]">
-              <button
-                onClick={() => {
-                  const dateStr = selectedCalendarDay.dateStr;
-                  setSelectedCalendarDay(null);
-                  handleOpenShowModal(null, dateStr);
-                }}
-                className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5"
-              >
-                <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Lịch Hẹn / Show Mới
+              <button onClick={() => { const dateStr = selectedCalendarDay.dateStr; setSelectedCalendarDay(null); handleOpenShowModal(null, dateStr); }} className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5">
+                <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Lịch Mới
               </button>
-              <button onClick={() => setSelectedCalendarDay(null)} className="px-3.5 py-1.5 border border-[#2c251e] text-[#c9bbaE] rounded-xl text-xs font-semibold ml-auto">
-                Đóng
-              </button>
+              <button onClick={() => setSelectedCalendarDay(null)} className="px-3.5 py-1.5 border border-[#2c251e] text-[#c9bbaE] rounded-xl text-xs font-semibold ml-auto">Đóng</button>
             </div>
           </div>
         </div>
@@ -2094,12 +1534,7 @@ export default function App() {
               <span className="font-bold text-xs uppercase tracking-wider text-[#c9bbaE]">
                 {confirmationModal.type === 'client' ? '📋 Phiếu Xác Nhận Dành Cho Khách Hàng' : '📌 Phiếu Xếp Lịch Cho Nhân Sự'}
               </span>
-              <button
-                onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })}
-                className="text-[#a3978b] hover:text-[#f9f6f0] p-1"
-              >
-                <Icons.X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="text-[#a3978b] hover:text-[#f9f6f0] p-1"><Icons.X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-5 bg-[#1b1815] space-y-4 text-[#f9f6f0]">
@@ -2113,18 +1548,9 @@ export default function App() {
               {confirmationModal.type === 'client' && (
                 <div className="space-y-3 text-xs">
                   <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">Khách hàng:</span>
-                      <strong className="text-[#f9f6f0]">{confirmationModal.show.clientName}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">Số điện thoại:</span>
-                      <strong className="text-[#c9bbaE]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">Gói dịch vụ:</span>
-                      <span className="font-bold bg-[#1b1815] text-[#c9bbaE] border border-[#3c342c] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span>
-                    </div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">Khách hàng:</span><strong className="text-[#f9f6f0]">{confirmationModal.show.clientName}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">Số điện thoại:</span><strong className="text-[#c9bbaE]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">Gói dịch vụ:</span><span className="font-bold bg-[#1b1815] text-[#c9bbaE] border border-[#3c342c] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
                   </div>
 
                   <div className="space-y-1.5 bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e]">
@@ -2136,26 +1562,14 @@ export default function App() {
                           : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">⏰ Giờ:</span>
-                      <strong className="text-[#f9f6f0]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">📍 Địa điểm:</span>
-                      <strong className="text-[#f9f6f0] text-right truncate max-w-[200px]">{confirmationModal.show.location || 'Tại Studio Our June'}</strong>
-                    </div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">⏰ Giờ:</span><strong className="text-[#f9f6f0]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">📍 Địa điểm:</span><strong className="text-[#f9f6f0] text-right truncate max-w-[200px]">{confirmationModal.show.location || 'Tại Studio Our June'}</strong></div>
                   </div>
 
                   {!isNonCommercialPackage(confirmationModal.show.packageType) && (
                     <div className="bg-[#24201c]/50 p-3.5 rounded-xl border border-[#2c251e] space-y-1.5">
-                      <div className="flex justify-between text-[#c9bbaE]">
-                        <span>Giá hợp đồng:</span>
-                        <strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.totalAmount)}</strong>
-                      </div>
-                      <div className="flex justify-between text-[#c9bbaE]">
-                        <span>Đã đặt cọc:</span>
-                        <strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.depositAmount)}</strong>
-                      </div>
+                      <div className="flex justify-between text-[#c9bbaE]"><span>Giá hợp đồng:</span><strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
+                      <div className="flex justify-between text-[#c9bbaE]"><span>Đã đặt cọc:</span><strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
                       <div className="flex justify-between text-rose-300 font-bold border-t border-[#2c251e] pt-1.5 text-sm">
                         <span>Còn lại cần thanh toán:</span>
                         <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
@@ -2164,7 +1578,7 @@ export default function App() {
                   )}
 
                   <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1">
-                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú buổi hẹn:</span>
+                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú:</span>
                     <p className="text-[#f9f6f0] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
                   </div>
                 </div>
@@ -2173,100 +1587,58 @@ export default function App() {
               {confirmationModal.type === 'staff' && (
                 <div className="space-y-3 text-xs">
                   <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1.5">
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">Tên Show / Gói:</span>
-                      <span className="font-bold text-[#f9f6f0]">{confirmationModal.show.packageType}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">Tên Khách Hàng:</span>
-                      <strong className="text-[#f9f6f0]">{confirmationModal.show.clientName}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">📞 SĐT Khách Hàng:</span>
-                      <strong className="text-[#c9bbaE]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong>
-                    </div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">Tên Show / Gói:</span><span className="font-bold text-[#f9f6f0]">{confirmationModal.show.packageType}</span></div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">Tên Khách Hàng:</span><strong className="text-[#f9f6f0]">{confirmationModal.show.clientName}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">📞 SĐT Khách:</span><strong className="text-[#c9bbaE]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
                   </div>
 
                   <div className="space-y-1.5 bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e]">
                     <div className="flex justify-between">
-                      <span className="text-[#a3978b]">📅 Thời gian chụp:</span>
+                      <span className="text-[#a3978b]">📅 Thời gian:</span>
                       <strong className="text-[#f9f6f0]">
                         {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
                           ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
                           : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">⏰ Giờ làm việc:</span>
-                      <strong className="text-[#f9f6f0]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#a3978b]">📍 Địa điểm:</span>
-                      <strong className="text-[#f9f6f0]">{confirmationModal.show.location || 'Tại Studio'}</strong>
-                    </div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">⏰ Giờ làm việc:</span><strong className="text-[#f9f6f0]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#a3978b]">📍 Địa điểm:</span><strong className="text-[#f9f6f0]">{confirmationModal.show.location || 'Tại Studio'}</strong></div>
                   </div>
 
                   <div className="space-y-1.5 bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e]">
                     <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Nhân sự Ekip:</span>
                     {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
                       <div key={c.id || i} className="flex justify-between border-b border-[#25201b] pb-1 last:border-none">
-                        <span className="text-[#a3978b]">👤 {c.role}:</span>
-                        <strong className="text-[#f9f6f0]">{c.name}</strong>
+                        <span className="text-[#a3978b]">👤 {c.role}:</span><strong className="text-[#f9f6f0]">{c.name}</strong>
                       </div>
                     ))}
-                    {getNormalizeCrewList(confirmationModal.show.assignedStaff).length === 0 && (
-                      <span className="text-[#6b625b] italic">Chưa chọn nhân sự</span>
-                    )}
                   </div>
 
                   <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1">
-                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú cho Ekip:</span>
-                    <p className="text-[#f9f6f0] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
+                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú Ekip:</span>
+                    <p className="text-[#f9f6f0] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có'}</p>
                   </div>
                 </div>
               )}
             </div>
 
             <div className="p-3 bg-[#1b1815] border-t border-[#2c251e] flex justify-between gap-2">
-              <button
-                onClick={() => {
-                  const show = confirmationModal.show;
-                  const dateStrText = show.endDate && show.endDate !== show.date
-                    ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}`
-                    : new Date(show.date).toLocaleDateString('vi-VN');
-                  let text = '';
-                  if (confirmationModal.type === 'client') {
-                    if (show.packageType === 'Có khách hỏi') {
-                      text = `[OUR JUNE STUDIO] THÔNG TIN LỊCH KHÁCH THAM KHẢO\n- Khách hàng: ${show.clientName}\n- Thời gian: ${dateStrText}\n- Giờ hẹn: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Ghi chú: ${show.notes || 'Không có'}\n\nNote lịch khách đang tham khảo dịch vụ tại Studio ạ!`;
-                    } else if (show.packageType === 'Thử váy và trao đổi với khách') {
-                      text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH HẸN THỬ VÁY & TRAO ĐỔI\n- Khách hàng: ${show.clientName}\n- Thời gian: ${dateStrText}\n- Giờ hẹn: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Ghi chú: ${show.notes || 'Không có'}\n\nStudio gửi anh/chị lịch hẹn thử váy và trao đổi chi tiết nhé ạ!`;
-                    } else {
-                      text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n- Ghi chú: ${show.notes || 'Không có'}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
-                    }
-                  } else {
-                    const crewListText = getNormalizeCrewList(show.assignedStaff)
-                      .map(c => `+ ${c.role}: ${c.name}`)
-                      .join('\n');
-                    text = `[OUR JUNE STUDIO] THÔNG BÁO LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- SĐT Khách: ${show.clientPhone || 'Chưa có'}\n- Thời gian: ${dateStrText}\n- Giờ làm việc: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n\nPhân công Ekip:\n${crewListText || '+ Chưa phân công'}\n\nGhi chú: ${show.notes || 'Không có'}\n\nAnh/em lưu ý có mặt đúng giờ nhé!`;
-                  }
-                  if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text).then(() => {
-                      alert('Đã sao chép tin nhắn xác nhận!');
-                    }).catch(() => {
-                      alert('Không thể sao chép tự động.');
-                    });
-                  }
-                }}
-                className="flex-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#332b24] transition shadow-2xs"
-              >
+              <button onClick={() => {
+                const show = confirmationModal.show;
+                const dateStrText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
+                let text = '';
+                if (confirmationModal.type === 'client') {
+                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
+                } else {
+                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}`;
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeTest(text).then(() => alert('Đã sao chép tin nhắn!'));
+                }
+              }} className="flex-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#332b24]">
                 📋 Sao Chép Tin Nhắn
               </button>
-              <button
-                onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })}
-                className="px-4 py-1.5 border border-[#2c251e] text-[#c9bbaE] rounded-xl text-xs font-semibold hover:bg-[#26211c]"
-              >
-                Đóng
-              </button>
+              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-4 py-1.5 border border-[#2c251e] text-[#c9bbaE] rounded-xl text-xs font-semibold">Đóng</button>
             </div>
           </div>
         </div>
