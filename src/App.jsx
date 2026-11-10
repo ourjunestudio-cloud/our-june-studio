@@ -210,6 +210,32 @@ export default function App() {
     }
   };
 
+  const deleteShowFromGoogleCalendar = async (showData) => {
+    const accessToken = localStorage.getItem('google_access_token');
+    if (!accessToken) return;
+
+    try {
+      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      const data = await response.json();
+      if (data.items) {
+        const eventMatch = data.items.find(event => 
+          event.summary && event.summary.includes(showData.clientName) &&
+          event.start && event.start.date === showData.date
+        );
+        if (eventMatch) {
+          await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventMatch.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Lỗi xóa sự kiện trên Google Calendar:", err);
+    }
+  };
+
   const handleSyncAllOldShows = async () => {
     const accessToken = localStorage.getItem('google_access_token');
     if (!accessToken) {
@@ -620,6 +646,10 @@ export default function App() {
   const handleDeleteShow = async (id, targetDate = null) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa lịch này?")) {
       try {
+        const showToDelete = shows.find(s => s.id === id);
+        if (showToDelete) {
+          await deleteShowFromGoogleCalendar(showToDelete);
+        }
         await deleteDoc(doc(db, "shows", id));
         const updatedShows = shows.filter(s => s.id !== id);
         if (selectedCalendarDay && targetDate) {
