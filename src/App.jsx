@@ -188,7 +188,7 @@ export default function App() {
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endDateStr = endDateObj.toISOString().split('T')[0];
 
-    // Ánh xạ màu sắc theo gói dịch vụ sang colorId của Google Calendar
+    // Ánh xạ màu sắc chuẩn theo gói dịch vụ sang colorId của Google Calendar
     let colorId = '2'; // Mặc định
     if (showData.packageType === 'Có khách hỏi') {
       colorId = '5'; // Màu vàng
@@ -1697,7 +1697,7 @@ export default function App() {
                 if (confirmationModal.type === 'client') {
                   text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
                 } else {
-                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}`;
+                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}`;
                 }
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(text).then(() => alert('Đã sao chép tin nhắn!'));
