@@ -249,7 +249,6 @@ export default function App() {
   const currentMonthShows = useMemo(() => {
     const filtered = shows.filter((show) => {
       if (!show.date) return false;
-      // Bỏ qua lịch thử váy trong tab danh sách show thương mại
       if (isTryDressPackage(show.packageType)) return false;
 
       const d = new Date(show.date);
@@ -333,7 +332,7 @@ export default function App() {
         if (!s.date) return;
         const d = new Date(s.date);
         if (d.getFullYear() === selectedYear && d.getMonth() + 1 === monthNum) {
-          if (isTryDressPackage(s.packageType)) return; // Bỏ qua lịch thử váy
+          if (isTryDressPackage(s.packageType)) return;
 
           const totalAmt = Number(s.totalAmount || 0);
           revenue += totalAmt;
@@ -595,7 +594,6 @@ export default function App() {
     const targetDate = showFormData.date;
     const isTryDress = isTryDressPackage(showFormData.packageType);
 
-    // Nếu là lịch thử váy, tự động set tài chính về 0 và trạng thái hoàn thành
     const payload = {
       ...showFormData,
       totalAmount: isTryDress ? 0 : Number(showFormData.totalAmount || 0),
@@ -1080,7 +1078,7 @@ export default function App() {
                           <p className="text-[#c9bbaE] font-medium mt-1">📍 {show.location || 'Chưa cập nhật'}</p>
                         </div>
 
-                        {/* Ekip list with conditional Paid Checkbox (chỉ hiện khi pay > 0) */}
+                        {/* Ekip list with conditional Paid Checkbox */}
                         <div className="bg-[#24201c]/60 p-2.5 rounded-lg border border-[#2c251e] space-y-1.5">
                           <span className="font-semibold text-[11px] text-[#a3978b] uppercase tracking-wider block">Phân công Ekip & Lương:</span>
                           <div className="space-y-1.5 text-[#c9bbaE]">
@@ -1093,7 +1091,6 @@ export default function App() {
                                     <span className="font-bold text-[#f9f6f0]">{member.role}:</span> {member.name}
                                     <span className="font-semibold text-rose-300 block">{formatCurrency(memberPay)}</span>
                                   </div>
-                                  {/* Chỉ hiện ô tick nếu lương > 0đ */}
                                   {memberPay > 0 && (
                                     <div className="flex items-center gap-1 shrink-0 bg-[#24201c] px-2 py-1 rounded border border-[#4d4237]">
                                       <input
@@ -2042,22 +2039,23 @@ export default function App() {
                         </div>
                       )}
 
-                      {!isTryDress && (
-                        <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#2c251e]">
-                          <button
-                            onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })}
-                            className="flex-1 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
-                          >
-                            📄 Thông tin gửi Khách xác nhận
-                          </button>
+                      {/* Nút gửi thông tin xác nhận cho khách luôn hiển thị cho mọi loại gói (bao gồm cả Thử váy) */}
+                      <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#2c251e]">
+                        <button
+                          onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })}
+                          className="flex-1 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
+                        >
+                          📄 Thông tin gửi Khách xác nhận
+                        </button>
+                        {!isTryDress && (
                           <button
                             onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })}
                             className="flex-1 bg-[#1b1815] hover:bg-[#26211c] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
                           >
                             👥 Thông tin gửi Nhân sự xác nhận
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   );
                 })
@@ -2103,7 +2101,7 @@ export default function App() {
               <div className="text-center border-b border-[#2c251e] pb-3 space-y-1">
                 <span className="font-bold text-sm tracking-tight text-[#f9f6f0]">OUR JUNE STUDIO</span>
                 <p className="text-[10px] text-[#a3978b] font-semibold uppercase tracking-widest">
-                  {confirmationModal.type === 'client' ? 'XÁC NHẬN THÔNG TIN BẢNG GIÁ & LỊCH CHỤP' : 'THÔNG TIN PHÂN CÔNG LỊCH EKIP CHỤP'}
+                  {confirmationModal.type === 'client' ? 'XÁC NHẬN THÔNG TIN LỊCH HẸN & DỊCH VỤ' : 'THÔNG TIN PHÂN CÔNG LỊCH EKIP CHỤP'}
                 </p>
               </div>
 
@@ -2143,23 +2141,25 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="bg-[#24201c]/50 p-3.5 rounded-xl border border-[#2c251e] space-y-1.5">
-                    <div className="flex justify-between text-[#c9bbaE]">
-                      <span>Giá hợp đồng:</span>
-                      <strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.totalAmount)}</strong>
+                  {!isTryDressPackage(confirmationModal.show.packageType) && (
+                    <div className="bg-[#24201c]/50 p-3.5 rounded-xl border border-[#2c251e] space-y-1.5">
+                      <div className="flex justify-between text-[#c9bbaE]">
+                        <span>Giá hợp đồng:</span>
+                        <strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.totalAmount)}</strong>
+                      </div>
+                      <div className="flex justify-between text-[#c9bbaE]">
+                        <span>Đã đặt cọc:</span>
+                        <strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.depositAmount)}</strong>
+                      </div>
+                      <div className="flex justify-between text-rose-300 font-bold border-t border-[#2c251e] pt-1.5 text-sm">
+                        <span>Còn lại cần thanh toán:</span>
+                        <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between text-[#c9bbaE]">
-                      <span>Đã đặt cọc:</span>
-                      <strong className="text-[#f9f6f0]">{formatCurrency(confirmationModal.show.depositAmount)}</strong>
-                    </div>
-                    <div className="flex justify-between text-rose-300 font-bold border-t border-[#2c251e] pt-1.5 text-sm">
-                      <span>Còn lại cần thanh toán:</span>
-                      <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
-                    </div>
-                  </div>
+                  )}
 
                   <div className="bg-[#24201c]/50 p-3 rounded-xl border border-[#2c251e] space-y-1">
-                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú buổi chụp:</span>
+                    <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block">📝 Ghi chú buổi hẹn:</span>
                     <p className="text-[#f9f6f0] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
                   </div>
                 </div>
@@ -2231,7 +2231,11 @@ export default function App() {
                     : new Date(show.date).toLocaleDateString('vi-VN');
                   let text = '';
                   if (confirmationModal.type === 'client') {
-                    text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n- Ghi chú: ${show.notes || 'Không có'}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
+                    if (isTryDressPackage(show.packageType)) {
+                      text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH HẸN THỬ VÁY & TRAO ĐỔI\n- Khách hàng: ${show.clientName}\n- Thời gian: ${dateStrText}\n- Giờ hẹn: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Ghi chú: ${show.notes || 'Không có'}\n\nStudio gửi anh/chị lịch hẹn thử váy và trao đổi chi tiết nhé ạ!`;
+                    } else {
+                      text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n- Ghi chú: ${show.notes || 'Không có'}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
+                    }
                   } else {
                     const crewListText = getNormalizeCrewList(show.assignedStaff)
                       .map(c => `+ ${c.role}: ${c.name}`)
