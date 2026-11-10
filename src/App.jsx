@@ -188,12 +188,25 @@ export default function App() {
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endDateStr = endDateObj.toISOString().split('T')[0];
 
+    // Ánh xạ màu sắc theo gói dịch vụ sang colorId của Google Calendar
+    let colorId = '2'; // Mặc định
+    if (showData.packageType === 'Có khách hỏi') {
+      colorId = '5'; // Màu vàng
+    } else if (showData.packageType === 'Thử váy và trao đổi với khách') {
+      colorId = '9'; // Màu xanh dương
+    } else if (showData.packageType === 'Makeup') {
+      colorId = '4'; // Màu đỏ/hồng
+    } else if (['Prewedding', 'Photoshoot', 'Tiệc báo hỷ', 'Đính hôn', 'Thành hôn', 'Tiệc thân mật'].includes(showData.packageType)) {
+      colorId = '10'; // Màu xanh lá
+    }
+
     const eventDetails = {
       summary: `[${showData.packageType}] ${showData.clientName}`,
       description: `SĐT: ${showData.clientPhone || 'Không có'}\nĐịa điểm: ${showData.location || 'Studio'}\nGhi chú: ${showData.notes || 'Không có'}`,
       location: showData.location || 'Our June Studio',
       start: { date: startDate },
       end: { date: endDateStr },
+      colorId: colorId,
     };
 
     try {
