@@ -105,6 +105,7 @@ const Icons = {
 };
 
 const PACKAGES = [
+  'Có khách hỏi',
   'Thử váy và trao đổi với khách',
   'Tiệc báo hỷ',
   'Đính hôn',
@@ -195,7 +196,8 @@ export default function App() {
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
-  const isTryDressPackage = (pkgType) => pkgType === 'Thử váy và trao đổi với khách';
+  // Các gói không tính doanh thu / không phải show chính thức
+  const isNonCommercialPackage = (pkgType) => pkgType === 'Thử váy và trao đổi với khách' || pkgType === 'Có khách hỏi';
 
   const getNormalizeCrewList = (assignedStaff) => {
     if (!assignedStaff) return [];
@@ -206,18 +208,18 @@ export default function App() {
   };
 
   const calculateShowStaffPay = (show) => {
-    if (isTryDressPackage(show.packageType)) return 0;
+    if (isNonCommercialPackage(show.packageType)) return 0;
     const crewList = getNormalizeCrewList(show.assignedStaff);
     return crewList.reduce((sum, item) => sum + Number(item.pay || 0), 0);
   };
 
   const calculateShowOtherExpenses = (show) => {
-    if (isTryDressPackage(show.packageType)) return 0;
+    if (isNonCommercialPackage(show.packageType)) return 0;
     return (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   };
 
   const calculateShowTotalExpenses = (show) => {
-    if (isTryDressPackage(show.packageType)) return 0;
+    if (isNonCommercialPackage(show.packageType)) return 0;
     const staffPay = calculateShowStaffPay(show);
     const otherExpenses = calculateShowOtherExpenses(show);
     return staffPay + otherExpenses;
@@ -245,11 +247,11 @@ export default function App() {
     return dateStr >= start && dateStr <= end;
   };
 
-  // Chỉ tính các show thương mại (loại bỏ lịch thử váy) cho Tab Danh Sách
+  // Chỉ tính các show thương mại cho Tab Danh Sách
   const currentMonthShows = useMemo(() => {
     const filtered = shows.filter((show) => {
       if (!show.date) return false;
-      if (isTryDressPackage(show.packageType)) return false;
+      if (isNonCommercialPackage(show.packageType)) return false;
 
       const d = new Date(show.date);
       const m = d.getMonth() + 1;
@@ -291,7 +293,7 @@ export default function App() {
                         (show.endDate && new Date(show.endDate).getMonth() + 1 === selectedMonth && new Date(show.endDate).getFullYear() === selectedYear);
 
       if (isInMonth) {
-        if (!isTryDressPackage(show.packageType)) {
+        if (!isNonCommercialPackage(show.packageType)) {
           commercialShowsCount++;
           totalRevenue += Number(show.totalAmount || 0);
           totalDeposit += Number(show.depositAmount || 0);
@@ -332,7 +334,7 @@ export default function App() {
         if (!s.date) return;
         const d = new Date(s.date);
         if (d.getFullYear() === selectedYear && d.getMonth() + 1 === monthNum) {
-          if (isTryDressPackage(s.packageType)) return;
+          if (isNonCommercialPackage(s.packageType)) return;
 
           const totalAmt = Number(s.totalAmount || 0);
           revenue += totalAmt;
@@ -420,7 +422,7 @@ export default function App() {
     const matchedShows = [];
     shows.forEach((s) => {
       if (!s.date) return;
-      if (isTryDressPackage(s.packageType)) return;
+      if (isNonCommercialPackage(s.packageType)) return;
       const d = new Date(s.date);
       if (d.getFullYear() === selectedYear) {
         const crewList = getNormalizeCrewList(s.assignedStaff);
@@ -592,14 +594,14 @@ export default function App() {
   const handleSaveShow = async (e) => {
     e.preventDefault();
     const targetDate = showFormData.date;
-    const isTryDress = isTryDressPackage(showFormData.packageType);
+    const isNonComm = isNonCommercialPackage(showFormData.packageType);
 
     const payload = {
       ...showFormData,
-      totalAmount: isTryDress ? 0 : Number(showFormData.totalAmount || 0),
-      depositAmount: isTryDress ? 0 : Number(showFormData.depositAmount || 0),
-      expenses: isTryDress ? [] : showFormData.expenses,
-      assignedStaff: isTryDress ? { crewList: [] } : showFormData.assignedStaff
+      totalAmount: isNonComm ? 0 : Number(showFormData.totalAmount || 0),
+      depositAmount: isNonComm ? 0 : Number(showFormData.depositAmount || 0),
+      expenses: isNonComm ? [] : showFormData.expenses,
+      assignedStaff: isNonComm ? { crewList: [] } : showFormData.assignedStaff
     };
 
     try {
@@ -911,6 +913,7 @@ export default function App() {
               </div>
 
               <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#a3978b] flex-wrap">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-600"></span> Có khách hỏi</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#1e3a8a]"></span> Thử váy & trao đổi</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#8c525c]"></span> Makeup</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#3e5244]"></span> Show Chụp Hình</span>
@@ -952,9 +955,12 @@ export default function App() {
 
                       <div className="space-y-1 overflow-hidden">
                         {cell.shows.map((show) => {
-                          const isTryDress = isTryDressPackage(show.packageType);
+                          const isAsk = show.packageType === 'Có khách hỏi';
+                          const isTryDress = isNonCommercialPackage(show.packageType);
                           const isMakeupOnly = show.packageType === 'Makeup';
-                          const bgStyle = isTryDress 
+                          const bgStyle = isAsk
+                            ? 'bg-yellow-600 text-[#141210] font-bold'
+                            : isTryDress 
                             ? 'bg-[#1e3a8a] text-[#f9f6f0] font-semibold' 
                             : isMakeupOnly 
                             ? 'bg-[#703f47] text-[#f9f6f0] font-semibold' 
@@ -976,11 +982,11 @@ export default function App() {
                             >
                               {isStartDate || !hasMultiDays ? (
                                 <>
-                                  <div className="font-bold uppercase tracking-tighter opacity-90 break-words">{show.packageType} {hasMultiDays && `(Ngày đầu)`}</div>
-                                  <div className="font-normal break-words whitespace-normal">{show.clientName}</div>
+                                  <div className="font-bold uppercase tracking-tighter opacity-95 break-words">{show.packageType} {hasMultiDays && `(Ngày đầu)`}</div>
+                                  <div className="font-medium break-words whitespace-normal">{show.clientName}</div>
                                 </>
                               ) : (
-                                <div className="text-center opacity-80 font-medium truncate">
+                                <div className="text-center opacity-85 font-bold truncate">
                                   {isEndDate ? '➔ Hết' : '...'}
                                 </div>
                               )}
@@ -1039,7 +1045,7 @@ export default function App() {
             <div className="space-y-3">
               {currentMonthShows.length === 0 ? (
                 <div className="bg-[#1b1815] p-8 rounded-xl border border-[#2c251e] text-center space-y-2">
-                  <p className="text-[#a3978b] font-medium text-xs">Chưa có show thương mại nào trong Tháng {selectedMonth}/{selectedYear} (Lịch thử váy đã được ẩn khỏi danh sách này)</p>
+                  <p className="text-[#a3978b] font-medium text-xs">Chưa có show thương mại nào trong Tháng {selectedMonth}/{selectedYear} (Lịch "Có khách hỏi" và thử váy đã được ẩn khỏi danh sách này)</p>
                   <button onClick={() => handleOpenShowModal()} className="text-xs font-semibold text-[#f3ece4] hover:underline">
                     + Tạo lịch chụp mới ngay
                   </button>
@@ -1151,7 +1157,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
-                  <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm (Không bao gồm lịch thử váy)</p>
+                  <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm (Không bao gồm lịch thử váy và khách hỏi)</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">
@@ -1342,8 +1348,7 @@ export default function App() {
             <div className="bg-[#1b1815] rounded-xl border border-[#2c251e] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
-                - Ô tick "Đã trả lương" tại tab Danh Sách chỉ xuất hiện với các vị trí có số tiền công lớn hơn 0đ.<br/>
-                - Lịch "Thử váy và trao đổi với khách" hoàn toàn miễn phí, hiển thị màu xanh trên lịch và không tính vào doanh thu.<br/>
+                - Lịch "Có khách hỏi" (màu vàng) và "Thử váy và trao đổi với khách" (màu xanh dương) dùng để note lịch hẹn, hoàn toàn miễn phí và không tính vào doanh thu.<br/>
                 - Múi giờ hệ thống tự động đồng bộ theo giờ Việt Nam (GMT+7).
               </p>
             </div>
@@ -1740,8 +1745,8 @@ export default function App() {
                 />
               </div>
 
-              {/* Ekip Pay & Finance Input chỉ hiện nếu KHÔNG PHẢI gói Thử váy */}
-              {!isTryDressPackage(showFormData.packageType) && (
+              {/* Ekip Pay & Finance Input chỉ hiện nếu KHÔNG PHẢI gói không thương mại */}
+              {!isNonCommercialPackage(showFormData.packageType) && (
                 <>
                   <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
                     <div className="flex justify-between items-center">
@@ -1958,7 +1963,8 @@ export default function App() {
                 </div>
               ) : (
                 selectedCalendarDay.shows.map((show) => {
-                  const isTryDress = isTryDressPackage(show.packageType);
+                  const isNonComm = isNonCommercialPackage(show.packageType);
+                  const isTryDress = show.packageType === 'Thử váy và trao đổi với khách';
                   const totalPackage = Number(show.totalAmount || 0);
                   const deposit = Number(show.depositAmount || 0);
                   const remaining = totalPackage - deposit;
@@ -1997,7 +2003,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      {!isTryDress && (
+                      {!isNonComm && (
                         <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1.5 text-xs">
                           <div className="flex justify-between items-center">
                             <span className="text-[#a3978b] font-medium">Giá gói chụp:</span>
@@ -2014,7 +2020,7 @@ export default function App() {
                         </div>
                       )}
 
-                      {!isTryDress && (
+                      {!isNonComm && (
                         <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1 text-xs">
                           <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block mb-1">Phân công Nhân sự & Tiền công:</span>
                           {getNormalizeCrewList(show.assignedStaff).map((c, i) => (
@@ -2039,7 +2045,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Nút gửi thông tin xác nhận cho khách luôn hiển thị cho mọi loại gói (bao gồm cả Thử váy) */}
                       <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#2c251e]">
                         <button
                           onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })}
@@ -2047,7 +2052,7 @@ export default function App() {
                         >
                           📄 Thông tin gửi Khách xác nhận
                         </button>
-                        {!isTryDress && (
+                        {!isNonComm && (
                           <button
                             onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })}
                             className="flex-1 bg-[#1b1815] hover:bg-[#26211c] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
@@ -2141,7 +2146,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {!isTryDressPackage(confirmationModal.show.packageType) && (
+                  {!isNonCommercialPackage(confirmationModal.show.packageType) && (
                     <div className="bg-[#24201c]/50 p-3.5 rounded-xl border border-[#2c251e] space-y-1.5">
                       <div className="flex justify-between text-[#c9bbaE]">
                         <span>Giá hợp đồng:</span>
@@ -2231,7 +2236,9 @@ export default function App() {
                     : new Date(show.date).toLocaleDateString('vi-VN');
                   let text = '';
                   if (confirmationModal.type === 'client') {
-                    if (isTryDressPackage(show.packageType)) {
+                    if (show.packageType === 'Có khách hỏi') {
+                      text = `[OUR JUNE STUDIO] THÔNG TIN LỊCH KHÁCH THAM KHẢO\n- Khách hàng: ${show.clientName}\n- Thời gian: ${dateStrText}\n- Giờ hẹn: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Ghi chú: ${show.notes || 'Không có'}\n\nNote lịch khách đang tham khảo dịch vụ tại Studio ạ!`;
+                    } else if (show.packageType === 'Thử váy và trao đổi với khách') {
                       text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH HẸN THỬ VÁY & TRAO ĐỔI\n- Khách hàng: ${show.clientName}\n- Thời gian: ${dateStrText}\n- Giờ hẹn: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Ghi chú: ${show.notes || 'Không có'}\n\nStudio gửi anh/chị lịch hẹn thử váy và trao đổi chi tiết nhé ạ!`;
                     } else {
                       text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH CHỤP\n- Khách hàng: ${show.clientName}\n- Gói dịch vụ: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}\n- Tổng giá trị: ${formatCurrency(show.totalAmount)}\n- Đã cọc: ${formatCurrency(show.depositAmount)}\n- Còn lại: ${formatCurrency(Number(show.totalAmount || 0) - Number(show.depositAmount || 0))}\n- Ghi chú: ${show.notes || 'Không có'}\n\nQuý khách vui lòng kiểm tra lại giúp Studio nhé!`;
