@@ -527,6 +527,17 @@ export default function App() {
 
       const showRef = doc(db, "shows", showId);
       await updateDoc(showRef, { assignedStaff: { crewList: updatedCrewList } });
+
+      // Cập nhật ngay lập tức state đang mở modal chi tiết ngày để giao diện phản hồi tức thì
+      if (selectedCalendarDay) {
+        const updatedDayShows = selectedCalendarDay.shows.map(s => {
+          if (s.id === showId) {
+            return { ...s, assignedStaff: { crewList: updatedCrewList } };
+          }
+          return s;
+        });
+        setSelectedCalendarDay({ ...selectedCalendarDay, shows: updatedDayShows });
+      }
     } catch (error) {
       console.error("Lỗi cập nhật trạng thái thanh toán lương:", error);
     }
