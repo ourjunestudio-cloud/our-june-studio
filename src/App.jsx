@@ -20,7 +20,6 @@ const db = getFirestore(app);
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
-// Hàm lấy ngày hiện tại chuẩn theo giờ Việt Nam (GMT+7)
 const getVietnamTodayStr = () => {
   const now = new Date();
   const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
@@ -28,7 +27,6 @@ const getVietnamTodayStr = () => {
   return vnTime.toISOString().split('T')[0];
 };
 
-// Inline SVG Icon components
 const Icons = {
   Calendar: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +124,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  // Real-time Firestore states
   const [shows, setShows] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
@@ -143,7 +140,6 @@ export default function App() {
       setStaffList(items);
     });
 
-    // Load Google GIS script
     const script = document.createElement('script');
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
@@ -157,7 +153,7 @@ export default function App() {
             if (response && response.access_token) {
               localStorage.setItem('google_access_token', response.access_token);
               setIsGoogleConnected(true);
-              alert("Kết nối Google Calendar thành công! Từ nay lịch tạo trên web sẽ tự động đồng bộ sang Google Calendar.");
+              alert("Kết nối Google Calendar thành công!");
             }
           },
         });
@@ -183,7 +179,6 @@ export default function App() {
     }
   };
 
-  // Hàm tự động đẩy sự kiện lên Google Calendar qua API
   const syncShowToGoogleCalendar = async (showData) => {
     const accessToken = localStorage.getItem('google_access_token');
     if (!accessToken) return;
@@ -211,11 +206,30 @@ export default function App() {
         body: JSON.stringify(eventDetails),
       });
     } catch (err) {
-      console.error("Lỗi đồng bộ Google Calendar tự động:", err);
+      console.error("Lỗi đồng bộ Google Calendar:", err);
     }
   };
 
-  // Modals state
+  // Nút đồng bộ toàn bộ lịch cũ sang Google Calendar
+  const handleSyncAllOldShows = async () => {
+    const accessToken = localStorage.getItem('google_access_token');
+    if (!accessToken) {
+      alert("Vui lòng bấm 'Kết nối Google Calendar' trước khi đồng bộ!");
+      return;
+    }
+
+    if (!window.confirm(`Bạn có chắc chắn muốn đẩy toàn bộ ${shows.length} lịch hiện có lên Google Calendar không?`)) return;
+
+    let count = 0;
+    for (const show of shows) {
+      if (show.date) {
+        await syncShowToGoogleCalendar(show);
+        count++;
+      }
+    }
+    alert(`Đã đồng bộ thành công ${count} lịch lên Google Calendar!`);
+  };
+
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
   const [editingShow, setEditingShow] = useState(null);
@@ -721,12 +735,23 @@ export default function App() {
                 <span className="text-[10px] bg-[#26211c] text-[#c9bbaE] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#3c342c]">STUDIO</span>
               </div>
             </div>
-            <button
-              onClick={handleConnectGoogle}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition ${isGoogleConnected ? 'bg-[#202c24] text-[#86efac] border-[#2e4d38]' : 'bg-[#26211c] text-[#f9f6f0] border-[#3c342c]'}`}
-            >
-              {isGoogleConnected ? '✓ Đã kết nối Google Calendar' : '🔗 Kết nối Google Calendar'}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={handleConnectGoogle}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition ${isGoogleConnected ? 'bg-[#202c24] text-[#86efac] border-[#2e4d38]' : 'bg-[#26211c] text-[#f9f6f0] border-[#3c342c]'}`}
+              >
+                {isGoogleConnected ? '✓ Đã kết nối Google' : '🔗 Kết nối Google'}
+              </button>
+              {isGoogleConnected && (
+                <button
+                  onClick={handleSyncAllOldShows}
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#26211c] text-[#f9f6f0] border border-[#3c342c] hover:bg-[#332b24] transition"
+                  title="Đẩy toàn bộ lịch cũ lên Google Calendar"
+                >
+                  🔄 Đồng bộ lịch cũ
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Navigation Tabs */}
@@ -1633,7 +1658,7 @@ export default function App() {
                   text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}`;
                 }
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                  navigator.clipboard.writeTest(text).then(() => alert('Đã sao chép tin nhắn!'));
+                  navigator.clipboard.writeText(text).then(() => alert('Đã sao chép tin nhắn!'));
                 }
               }} className="flex-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#332b24]">
                 📋 Sao Chép Tin Nhắn
