@@ -195,6 +195,8 @@ export default function App() {
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
+  const isTryDressPackage = (pkgType) => pkgType === 'Thử váy và trao đổi với khách';
+
   const getNormalizeCrewList = (assignedStaff) => {
     if (!assignedStaff) return [];
     if (assignedStaff.crewList && Array.isArray(assignedStaff.crewList)) {
@@ -203,17 +205,20 @@ export default function App() {
     return [];
   };
 
-  const calculateShowStaffPay = (assignedStaff) => {
-    const crewList = getNormalizeCrewList(assignedStaff);
+  const calculateShowStaffPay = (show) => {
+    if (isTryDressPackage(show.packageType)) return 0;
+    const crewList = getNormalizeCrewList(show.assignedStaff);
     return crewList.reduce((sum, item) => sum + Number(item.pay || 0), 0);
   };
 
   const calculateShowOtherExpenses = (show) => {
+    if (isTryDressPackage(show.packageType)) return 0;
     return (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
   };
 
   const calculateShowTotalExpenses = (show) => {
-    const staffPay = calculateShowStaffPay(show.assignedStaff);
+    if (isTryDressPackage(show.packageType)) return 0;
+    const staffPay = calculateShowStaffPay(show);
     const otherExpenses = calculateShowOtherExpenses(show);
     return staffPay + otherExpenses;
   };
@@ -240,9 +245,13 @@ export default function App() {
     return dateStr >= start && dateStr <= end;
   };
 
+  // Chỉ tính các show thương mại (loại bỏ lịch thử váy) cho Tab Danh Sách
   const currentMonthShows = useMemo(() => {
     const filtered = shows.filter((show) => {
       if (!show.date) return false;
+      // Bỏ qua lịch thử váy trong tab danh sách show thương mại
+      if (isTryDressPackage(show.packageType)) return false;
+
       const d = new Date(show.date);
       const m = d.getMonth() + 1;
       const y = d.getFullYear();
@@ -271,12 +280,26 @@ export default function App() {
     let totalDeposit = 0;
     let totalExpenses = 0;
     let completedShowsCount = 0;
+    let commercialShowsCount = 0;
 
-    currentMonthShows.forEach((show) => {
-      totalRevenue += Number(show.totalAmount || 0);
-      totalDeposit += Number(show.depositAmount || 0);
-      totalExpenses += calculateShowTotalExpenses(show);
-      if (show.status === 'Đã thanh toán') completedShowsCount++;
+    shows.forEach((show) => {
+      if (!show.date) return;
+      const d = new Date(show.date);
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+      
+      const isInMonth = (m === selectedMonth && y === selectedYear) || 
+                        (show.endDate && new Date(show.endDate).getMonth() + 1 === selectedMonth && new Date(show.endDate).getFullYear() === selectedYear);
+
+      if (isInMonth) {
+        if (!isTryDressPackage(show.packageType)) {
+          commercialShowsCount++;
+          totalRevenue += Number(show.totalAmount || 0);
+          totalDeposit += Number(show.depositAmount || 0);
+          totalExpenses += calculateShowTotalExpenses(show);
+          if (show.status === 'Đã thanh toán') completedShowsCount++;
+        }
+      }
     });
 
     const netProfit = totalRevenue - totalExpenses;
@@ -288,10 +311,10 @@ export default function App() {
       remainingToCollect,
       totalExpenses,
       netProfit,
-      count: currentMonthShows.length,
+      count: commercialShowsCount,
       completedShowsCount
     };
-  }, [currentMonthShows]);
+  }, [shows, selectedMonth, selectedYear]);
 
   const yearlyStats = useMemo(() => {
     const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => {
@@ -310,10 +333,12 @@ export default function App() {
         if (!s.date) return;
         const d = new Date(s.date);
         if (d.getFullYear() === selectedYear && d.getMonth() + 1 === monthNum) {
+          if (isTryDressPackage(s.packageType)) return; // Bỏ qua lịch thử váy
+
           const totalAmt = Number(s.totalAmount || 0);
           revenue += totalAmt;
           
-          const sPay = calculateShowStaffPay(s.assignedStaff);
+          const sPay = calculateShowStaffPay(s);
           const oExp = calculateShowOtherExpenses(s);
           staffPayExpenses += sPay;
           otherExpenses += oExp;
@@ -396,6 +421,7 @@ export default function App() {
     const matchedShows = [];
     shows.forEach((s) => {
       if (!s.date) return;
+      if (isTryDressPackage(s.packageType)) return;
       const d = new Date(s.date);
       if (d.getFullYear() === selectedYear) {
         const crewList = getNormalizeCrewList(s.assignedStaff);
@@ -567,15 +593,26 @@ export default function App() {
   const handleSaveShow = async (e) => {
     e.preventDefault();
     const targetDate = showFormData.date;
+    const isTryDress = isTryDressPackage(showFormData.packageType);
+
+    // Nếu là lịch thử váy, tự động set tài chính về 0 và trạng thái hoàn thành
+    const payload = {
+      ...showFormData,
+      totalAmount: isTryDress ? 0 : Number(showFormData.totalAmount || 0),
+      depositAmount: isTryDress ? 0 : Number(showFormData.depositAmount || 0),
+      expenses: isTryDress ? [] : showFormData.expenses,
+      assignedStaff: isTryDress ? { crewList: [] } : showFormData.assignedStaff
+    };
+
     try {
       let updatedShows = [...shows];
       if (editingShow) {
         const showRef = doc(db, "shows", editingShow.id);
-        await updateDoc(showRef, showFormData);
-        updatedShows = updatedShows.map(s => s.id === editingShow.id ? { ...showFormData, id: editingShow.id } : s);
+        await updateDoc(showRef, payload);
+        updatedShows = updatedShows.map(s => s.id === editingShow.id ? { ...payload, id: editingShow.id } : s);
       } else {
-        const docRef = await addDoc(collection(db, "shows"), showFormData);
-        updatedShows.push({ ...showFormData, id: docRef.id });
+        const docRef = await addDoc(collection(db, "shows"), payload);
+        updatedShows.push({ ...payload, id: docRef.id });
       }
       setIsShowModalOpen(false);
       openDayDetailByDate(targetDate, updatedShows);
@@ -586,7 +623,7 @@ export default function App() {
   };
 
   const handleDeleteShow = async (id, targetDate = null) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa lịch chụp này?")) {
+    if (window.confirm("Bạn có chắc chắn muốn xóa lịch này?")) {
       try {
         await deleteDoc(doc(db, "shows", id));
         const updatedShows = shows.filter(s => s.id !== id);
@@ -793,7 +830,7 @@ export default function App() {
               className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-[#332b24] transition"
             >
               <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" />
-              <span>Tạo Lịch Chụp Mới</span>
+              <span>Tạo Lịch Hẹn / Show Mới</span>
             </button>
             <button
               onClick={handleExportData}
@@ -917,7 +954,7 @@ export default function App() {
 
                       <div className="space-y-1 overflow-hidden">
                         {cell.shows.map((show) => {
-                          const isTryDress = show.packageType === 'Thử váy và trao đổi với khách';
+                          const isTryDress = isTryDressPackage(show.packageType);
                           const isMakeupOnly = show.packageType === 'Makeup';
                           const bgStyle = isTryDress 
                             ? 'bg-[#1e3a8a] text-[#f9f6f0] font-semibold' 
@@ -1004,7 +1041,7 @@ export default function App() {
             <div className="space-y-3">
               {currentMonthShows.length === 0 ? (
                 <div className="bg-[#1b1815] p-8 rounded-xl border border-[#2c251e] text-center space-y-2">
-                  <p className="text-[#a3978b] font-medium text-xs">Chưa có lịch chụp nào trong Tháng {selectedMonth}/{selectedYear}</p>
+                  <p className="text-[#a3978b] font-medium text-xs">Chưa có show thương mại nào trong Tháng {selectedMonth}/{selectedYear} (Lịch thử váy đã được ẩn khỏi danh sách này)</p>
                   <button onClick={() => handleOpenShowModal()} className="text-xs font-semibold text-[#f3ece4] hover:underline">
                     + Tạo lịch chụp mới ngay
                   </button>
@@ -1117,7 +1154,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#2c251e] pb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#f9f6f0]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
-                  <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
+                  <p className="text-xs text-[#a3978b]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm (Không bao gồm lịch thử váy)</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold bg-[#26211c] text-[#c9bbaE] px-3 py-1 rounded-full border border-[#3c342c]">
@@ -1309,6 +1346,7 @@ export default function App() {
               <h3 className="font-bold text-xs uppercase text-[#a3978b]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#c9bbaE] leading-relaxed">
                 - Ô tick "Đã trả lương" tại tab Danh Sách chỉ xuất hiện với các vị trí có số tiền công lớn hơn 0đ.<br/>
+                - Lịch "Thử váy và trao đổi với khách" hoàn toàn miễn phí, hiển thị màu xanh trên lịch và không tính vào doanh thu.<br/>
                 - Múi giờ hệ thống tự động đồng bộ theo giờ Việt Nam (GMT+7).
               </p>
             </div>
@@ -1480,7 +1518,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-[#141210]/85 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-xl w-full max-w-lg my-6 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-3.5 border-b border-[#2c251e] flex justify-between items-center bg-[#1b1815] shrink-0">
-              <h3 className="font-bold text-xs text-[#f9f6f0]">{editingShow ? 'Chỉnh Sửa Lịch Chụp' : 'Tạo Lịch Chụp Mới'}</h3>
+              <h3 className="font-bold text-xs text-[#f9f6f0]">{editingShow ? 'Chỉnh Sửa Lịch Hẹn / Show' : 'Tạo Lịch Hẹn / Show Mới'}</h3>
               <button onClick={() => setIsShowModalOpen(false)} className="text-[#a3978b] hover:text-[#f9f6f0]">
                 <Icons.X className="w-4 h-4" />
               </button>
@@ -1512,7 +1550,7 @@ export default function App() {
 
                 {/* Khoảng ngày chụp (Booking.com style) */}
                 <div className="space-y-1 relative">
-                  <label className="block text-[11px] font-bold text-[#c9bbaE]">Khoảng Ngày Chụp (Từ ngày ➔ Đến ngày) *</label>
+                  <label className="block text-[11px] font-bold text-[#c9bbaE]">Khoảng Ngày Lịch (Từ ngày ➔ Đến ngày) *</label>
                   <div 
                     onClick={() => setIsDateRangePickerOpen(!isDateRangePickerOpen)}
                     className="w-full px-3 py-2 bg-[#24201c] border border-[#6b5d52] rounded-lg font-semibold text-[#f9f6f0] flex items-center justify-between cursor-pointer hover:border-[#86efac] transition"
@@ -1684,7 +1722,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-[#c9bbaE]">Địa Điểm Chụp</label>
+                <label className="block text-[11px] font-bold text-[#c9bbaE]">Địa Điểm</label>
                 <input
                   type="text"
                   value={showFormData.location}
@@ -1695,7 +1733,7 @@ export default function App() {
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-[#c9bbaE]">Ghi Chú Buổi Chụp</label>
+                <label className="block text-[11px] font-bold text-[#c9bbaE]">Ghi Chú Lịch Hẹn</label>
                 <textarea
                   rows={2}
                   value={showFormData.notes}
@@ -1705,167 +1743,171 @@ export default function App() {
                 />
               </div>
 
-              {/* Ekip Pay */}
-              <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
-                <div className="flex justify-between items-center">
-                  <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider">Phân công Ekip & Tiền công</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const currentCrew = showFormData.assignedStaff.crewList || [];
-                      setShowFormData({
-                        ...showFormData,
-                        assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0, paid: false }] }
-                      });
-                    }}
-                    className="text-[10px] font-bold text-[#f9f6f0] bg-[#24201c] border border-[#6b5d52] px-2 py-0.5 rounded"
-                  >
-                    + Thêm Nhân Sự
-                  </button>
-                </div>
-
-                <div className="space-y-1.5">
-                  {(showFormData.assignedStaff.crewList || []).map((member, idx) => (
-                    <div key={member.id || idx} className="bg-[#24201c]/40 p-2 rounded-lg border border-[#52443a] flex flex-col gap-1.5">
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <select
-                          value={member.role}
-                          onChange={(e) => {
-                            const updated = [...showFormData.assignedStaff.crewList];
-                            updated[idx].role = e.target.value;
-                            setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                          }}
-                          style={{ fontSize: '16px' }}
-                          className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]"
-                        >
-                          <option value="Photo">Photo</option>
-                          <option value="Video">Video</option>
-                          <option value="Makeup">Makeup</option>
-                          <option value="Làm tóc">Làm tóc</option>
-                          <option value="Freelance">Freelance</option>
-                        </select>
-
-                        <select
-                          value={member.name}
-                          onChange={(e) => {
-                            const updated = [...showFormData.assignedStaff.crewList];
-                            updated[idx].name = e.target.value;
-                            setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                          }}
-                          style={{ fontSize: '16px' }}
-                          className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]"
-                        >
-                          <option value="">-- Chọn Nhân Sự --</option>
-                          {staffList.map((st) => (
-                            <option key={st.id} value={st.name}>{st.name} ({st.role})</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          placeholder="0 đ"
-                          value={member.pay || ''}
-                          onChange={(e) => {
-                            const updated = [...showFormData.assignedStaff.crewList];
-                            updated[idx].pay = Number(e.target.value);
-                            setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                          }}
-                          style={{ fontSize: '16px' }}
-                          className="flex-1 px-2.5 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-bold text-rose-300"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = showFormData.assignedStaff.crewList.filter((_, i) => i !== idx);
-                            setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                          }}
-                          className="text-[#a3978b] hover:text-rose-300 p-1 bg-[#1b1815] border border-[#6b5d52] rounded"
-                        >
-                          <Icons.X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+              {/* Ekip Pay & Finance Input chỉ hiện nếu KHÔNG PHẢI gói Thử váy */}
+              {!isTryDressPackage(showFormData.packageType) && (
+                <>
+                  <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider">Phân công Ekip & Tiền công</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentCrew = showFormData.assignedStaff.crewList || [];
+                          setShowFormData({
+                            ...showFormData,
+                            assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0, paid: false }] }
+                          });
+                        }}
+                        className="text-[10px] font-bold text-[#f9f6f0] bg-[#24201c] border border-[#6b5d52] px-2 py-0.5 rounded"
+                      >
+                        + Thêm Nhân Sự
+                      </button>
                     </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Chi Phí Khác */}
-              <div className="space-y-1.5 border-t border-[#2c251e] pt-2.5">
-                <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider block">Chi Phí Khác</span>
-                <div className="space-y-1">
-                  {(showFormData.expenses || []).map((exp) => (
-                    <div key={exp.id} className="flex justify-between items-center bg-[#24201c]/40 p-1.5 rounded border border-[#52443a]">
-                      <span className="font-medium text-[#c9bbaE] truncate pr-2">{exp.title}</span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="font-bold text-rose-300">-{formatCurrency(exp.amount)}</span>
-                        <button type="button" onClick={() => handleRemoveExpense(exp.id)} className="text-rose-300">
-                          <Icons.X className="w-3 h-3" />
-                        </button>
-                      </div>
+                    <div className="space-y-1.5">
+                      {(showFormData.assignedStaff.crewList || []).map((member, idx) => (
+                        <div key={member.id || idx} className="bg-[#24201c]/40 p-2 rounded-lg border border-[#52443a] flex flex-col gap-1.5">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <select
+                              value={member.role}
+                              onChange={(e) => {
+                                const updated = [...showFormData.assignedStaff.crewList];
+                                updated[idx].role = e.target.value;
+                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
+                              }}
+                              style={{ fontSize: '16px' }}
+                              className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]"
+                            >
+                              <option value="Photo">Photo</option>
+                              <option value="Video">Video</option>
+                              <option value="Makeup">Makeup</option>
+                              <option value="Làm tóc">Làm tóc</option>
+                              <option value="Freelance">Freelance</option>
+                            </select>
+
+                            <select
+                              value={member.name}
+                              onChange={(e) => {
+                                const updated = [...showFormData.assignedStaff.crewList];
+                                updated[idx].name = e.target.value;
+                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
+                              }}
+                              style={{ fontSize: '16px' }}
+                              className="w-full px-2 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-semibold text-[#f9f6f0]"
+                            >
+                              <option value="">-- Chọn Nhân Sự --</option>
+                              {staffList.map((st) => (
+                                <option key={st.id} value={st.name}>{st.name} ({st.role})</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              placeholder="0 đ"
+                              value={member.pay || ''}
+                              onChange={(e) => {
+                                const updated = [...showFormData.assignedStaff.crewList];
+                                updated[idx].pay = Number(e.target.value);
+                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
+                              }}
+                              style={{ fontSize: '16px' }}
+                              className="flex-1 px-2.5 py-1 bg-[#1b1815] border border-[#6b5d52] rounded font-bold text-rose-300"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = showFormData.assignedStaff.crewList.filter((_, i) => i !== idx);
+                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
+                              }}
+                              className="text-[#a3978b] hover:text-rose-300 p-1 bg-[#1b1815] border border-[#6b5d52] rounded"
+                            >
+                              <Icons.X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    placeholder="Tên chi phí"
-                    value={newExpenseTitle}
-                    onChange={(e) => setNewExpenseTitle(e.target.value)}
-                    style={{ fontSize: '16px' }}
-                    className="flex-1 px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded text-[#f9f6f0]"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Số tiền"
-                    value={newExpenseAmount}
-                    onChange={(e) => setNewExpenseAmount(e.target.value)}
-                    style={{ fontSize: '16px' }}
-                    className="w-24 px-2 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-rose-300"
-                  />
-                  <button type="button" onClick={handleAddExpense} className="px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] text-[#f9f6f0] rounded">
-                    + Thêm
-                  </button>
-                </div>
-              </div>
+                  </div>
 
-              {/* Finance Input */}
-              <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-[#c9bbaE]">Giá Hợp Đồng (VNĐ)</label>
-                  <input
-                    type="number"
-                    value={showFormData.totalAmount || ''}
-                    onChange={(e) => setShowFormData({ ...showFormData, totalAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
-                    style={{ fontSize: '16px' }}
-                    className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-[#c9bbaE]">Tiền Đặt Cọc (VNĐ)</label>
-                  <input
-                    type="number"
-                    value={showFormData.depositAmount || ''}
-                    onChange={(e) => setShowFormData({ ...showFormData, depositAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
-                    style={{ fontSize: '16px' }}
-                    className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-[#c9bbaE]">Trạng Thái</label>
-                  <select
-                    value={showFormData.status}
-                    onChange={(e) => setShowFormData({ ...showFormData, status: e.target.value })}
-                    style={{ fontSize: '16px' }}
-                    className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
-                  >
-                    <option value="Chưa cọc">Chưa cọc</option>
-                    <option value="Đã cọc">Đã cọc</option>
-                    <option value="Đã thanh toán">Đã thanh toán</option>
-                  </select>
-                </div>
-              </div>
+                  {/* Chi Phí Khác */}
+                  <div className="space-y-1.5 border-t border-[#2c251e] pt-2.5">
+                    <span className="font-bold text-[10px] text-[#a3978b] uppercase tracking-wider block">Chi Phí Khác</span>
+                    <div className="space-y-1">
+                      {(showFormData.expenses || []).map((exp) => (
+                        <div key={exp.id} className="flex justify-between items-center bg-[#24201c]/40 p-1.5 rounded border border-[#52443a]">
+                          <span className="font-medium text-[#c9bbaE] truncate pr-2">{exp.title}</span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="font-bold text-rose-300">-{formatCurrency(exp.amount)}</span>
+                            <button type="button" onClick={() => handleRemoveExpense(exp.id)} className="text-rose-300">
+                              <Icons.X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Tên chi phí"
+                        value={newExpenseTitle}
+                        onChange={(e) => setNewExpenseTitle(e.target.value)}
+                        style={{ fontSize: '16px' }}
+                        className="flex-1 px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded text-[#f9f6f0]"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Số tiền"
+                        value={newExpenseAmount}
+                        onChange={(e) => setNewExpenseAmount(e.target.value)}
+                        style={{ fontSize: '16px' }}
+                        className="w-24 px-2 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-rose-300"
+                      />
+                      <button type="button" onClick={handleAddExpense} className="px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] text-[#f9f6f0] rounded">
+                        + Thêm
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Finance Input */}
+                  <div className="space-y-2 border-t border-[#2c251e] pt-2.5">
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-[#c9bbaE]">Giá Hợp Đồng (VNĐ)</label>
+                      <input
+                        type="number"
+                        value={showFormData.totalAmount || ''}
+                        onChange={(e) => setShowFormData({ ...showFormData, totalAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
+                        style={{ fontSize: '16px' }}
+                        className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-[#c9bbaE]">Tiền Đặt Cọc (VNĐ)</label>
+                      <input
+                        type="number"
+                        value={showFormData.depositAmount || ''}
+                        onChange={(e) => setShowFormData({ ...showFormData, depositAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
+                        style={{ fontSize: '16px' }}
+                        className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-[#c9bbaE]">Trạng Thái</label>
+                      <select
+                        value={showFormData.status}
+                        onChange={(e) => setShowFormData({ ...showFormData, status: e.target.value })}
+                        style={{ fontSize: '16px' }}
+                        className="w-full px-2.5 py-1 bg-[#24201c] border border-[#6b5d52] rounded font-bold text-[#f9f6f0]"
+                      >
+                        <option value="Chưa cọc">Chưa cọc</option>
+                        <option value="Đã cọc">Đã cọc</option>
+                        <option value="Đã thanh toán">Đã thanh toán</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-end gap-2 pt-2.5 border-t border-[#2c251e]">
                 <button 
@@ -1880,7 +1922,7 @@ export default function App() {
                   Hủy
                 </button>
                 <button type="submit" className="px-3 py-1 bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] rounded font-semibold">
-                  Lưu Show
+                  Lưu Lịch
                 </button>
               </div>
             </form>
@@ -1894,8 +1936,8 @@ export default function App() {
           <div className="bg-[#1b1815] rounded-2xl border border-[#2c251e] shadow-xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#2c251e] pb-3">
               <div>
-                <h3 className="font-bold text-[#f9f6f0]">Lịch Chụp Ngày {new Date(selectedCalendarDay.dateStr).toLocaleDateString('vi-VN')}</h3>
-                <p className="text-xs text-[#a3978b] font-medium">Tổng số: {selectedCalendarDay.shows.length} show</p>
+                <h3 className="font-bold text-[#f9f6f0]">Lịch Ngày {new Date(selectedCalendarDay.dateStr).toLocaleDateString('vi-VN')}</h3>
+                <p className="text-xs text-[#a3978b] font-medium">Tổng số: {selectedCalendarDay.shows.length} lịch hẹn/show</p>
               </div>
               <button onClick={() => setSelectedCalendarDay(null)} className="text-[#a3978b] hover:text-[#f9f6f0]">
                 <Icons.X className="w-5 h-5" />
@@ -1905,7 +1947,7 @@ export default function App() {
             <div className="space-y-3.5">
               {selectedCalendarDay.shows.length === 0 ? (
                 <div className="text-center py-6 space-y-3">
-                  <p className="text-xs text-[#a3978b] font-medium">Chưa có lịch chụp nào trong ngày này.</p>
+                  <p className="text-xs text-[#a3978b] font-medium">Chưa có lịch hẹn hoặc show nào trong ngày này.</p>
                   <button
                     onClick={() => {
                       const dateStr = selectedCalendarDay.dateStr;
@@ -1914,11 +1956,12 @@ export default function App() {
                     }}
                     className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-4 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5"
                   >
-                    <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Show Mới Cho Ngày Này
+                    <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Lịch Hẹn / Show Mới Cho Ngày Này
                   </button>
                 </div>
               ) : (
                 selectedCalendarDay.shows.map((show) => {
+                  const isTryDress = isTryDressPackage(show.packageType);
                   const totalPackage = Number(show.totalAmount || 0);
                   const deposit = Number(show.depositAmount || 0);
                   const remaining = totalPackage - deposit;
@@ -1941,7 +1984,7 @@ export default function App() {
                           <button onClick={() => { setSelectedCalendarDay(null); handleOpenShowModal(show); }} className="text-xs font-semibold text-[#c9bbaE] hover:underline flex items-center gap-1">
                             <Icons.Edit className="w-3.5 h-3.5" /> Sửa
                           </button>
-                          <button onClick={() => handleDeleteShow(show.id, selectedCalendarDay.dateStr)} className="text-rose-300 hover:text-rose-400 p-1 bg-[#1b1815] border border-[#4d302e] rounded-md" title="Xóa show này">
+                          <button onClick={() => handleDeleteShow(show.id, selectedCalendarDay.dateStr)} className="text-rose-300 hover:text-rose-400 p-1 bg-[#1b1815] border border-[#4d302e] rounded-md" title="Xóa lịch này">
                             <Icons.Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -1957,58 +2000,64 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1.5 text-xs">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[#a3978b] font-medium">Giá gói chụp:</span>
-                          <span className="font-bold text-[#f9f6f0]">{formatCurrency(totalPackage)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-[#c9bbaE]">
-                          <span className="font-medium">Đã đặt cọc:</span>
-                          <span className="font-bold text-[#f9f6f0]">{formatCurrency(deposit)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-rose-300 pt-1 border-t border-[#2c251e]">
-                          <span className="font-medium">Còn lại phải thu:</span>
-                          <span className="font-bold">{formatCurrency(remaining)}</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1 text-xs">
-                        <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block mb-1">Phân công Nhân sự & Tiền công:</span>
-                        {getNormalizeCrewList(show.assignedStaff).map((c, i) => (
-                          <div key={c.id || i} className="flex justify-between text-[#c9bbaE] border-b border-[#25201b] last:border-none py-0.5 items-center">
-                            <span>👤 {c.role}: <strong>{c.name}</strong></span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-rose-300">{formatCurrency(c.pay)}</span>
-                              {c.paid && <span className="text-[10px] bg-[#202c24] text-[#86efac] px-1.5 py-0.2 rounded border border-[#2e4d38]">Đã trả lương</span>}
-                            </div>
+                      {!isTryDress && (
+                        <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1.5 text-xs">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[#a3978b] font-medium">Giá gói chụp:</span>
+                            <span className="font-bold text-[#f9f6f0]">{formatCurrency(totalPackage)}</span>
                           </div>
-                        ))}
-                        {getNormalizeCrewList(show.assignedStaff).length === 0 && (
-                          <p className="text-[#6b625b] italic">Chưa phân công nhân sự</p>
-                        )}
-                      </div>
+                          <div className="flex justify-between items-center text-[#c9bbaE]">
+                            <span className="font-medium">Đã đặt cọc:</span>
+                            <span className="font-bold text-[#f9f6f0]">{formatCurrency(deposit)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-rose-300 pt-1 border-t border-[#2c251e]">
+                            <span className="font-medium">Còn lại phải thu:</span>
+                            <span className="font-bold">{formatCurrency(remaining)}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {!isTryDress && (
+                        <div className="bg-[#1b1815] p-2.5 rounded-lg border border-[#2c251e] space-y-1 text-xs">
+                          <span className="font-bold text-[11px] text-[#a3978b] uppercase tracking-wider block mb-1">Phân công Nhân sự & Tiền công:</span>
+                          {getNormalizeCrewList(show.assignedStaff).map((c, i) => (
+                            <div key={c.id || i} className="flex justify-between text-[#c9bbaE] border-b border-[#25201b] last:border-none py-0.5 items-center">
+                              <span>👤 {c.role}: <strong>{c.name}</strong></span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-rose-300">{formatCurrency(c.pay)}</span>
+                                {c.paid && <span className="text-[10px] bg-[#202c24] text-[#86efac] px-1.5 py-0.2 rounded border border-[#2e4d38]">Đã trả lương</span>}
+                              </div>
+                            </div>
+                          ))}
+                          {getNormalizeCrewList(show.assignedStaff).length === 0 && (
+                            <p className="text-[#6b625b] italic">Chưa phân công nhân sự</p>
+                          )}
+                        </div>
+                      )}
 
                       {show.notes && (
                         <div className="bg-[#1b1815] p-2.5 rounded-lg text-xs text-[#c9bbaE] space-y-0.5 border border-[#2c251e]">
-                          <span className="font-bold block text-[11px] text-[#a3978b]">📝 Ghi chú buổi chụp:</span>
+                          <span className="font-bold block text-[11px] text-[#a3978b]">📝 Ghi chú:</span>
                           <p className="leading-relaxed">{show.notes}</p>
                         </div>
                       )}
 
-                      <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#2c251e]">
-                        <button
-                          onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })}
-                          className="flex-1 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
-                        >
-                          📄 Thông tin gửi Khách xác nhận
-                        </button>
-                        <button
-                          onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })}
-                          className="flex-1 bg-[#1b1815] hover:bg-[#26211c] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
-                        >
-                          👥 Thông tin gửi Nhân sự xác nhận
-                        </button>
-                      </div>
+                      {!isTryDress && (
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#2c251e]">
+                          <button
+                            onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })}
+                            className="flex-1 bg-[#26211c] border border-[#3c342c] hover:bg-[#332b24] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
+                          >
+                            📄 Thông tin gửi Khách xác nhận
+                          </button>
+                          <button
+                            onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })}
+                            className="flex-1 bg-[#1b1815] hover:bg-[#26211c] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
+                          >
+                            👥 Thông tin gửi Nhân sự xác nhận
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -2016,18 +2065,16 @@ export default function App() {
             </div>
 
             <div className="flex justify-between items-center pt-2 border-t border-[#2c251e]">
-              {selectedCalendarDay.shows.length > 0 && (
-                <button
-                  onClick={() => {
-                    const dateStr = selectedCalendarDay.dateStr;
-                    setSelectedCalendarDay(null);
-                    handleOpenShowModal(null, dateStr);
-                  }}
-                  className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5"
-                >
-                  <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Show Mới
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  const dateStr = selectedCalendarDay.dateStr;
+                  setSelectedCalendarDay(null);
+                  handleOpenShowModal(null, dateStr);
+                }}
+                className="bg-[#26211c] border border-[#3c342c] text-[#f9f6f0] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5"
+              >
+                <Icons.Plus className="w-4 h-4 text-[#c9bbaE]" /> Thêm Lịch Hẹn / Show Mới
+              </button>
               <button onClick={() => setSelectedCalendarDay(null)} className="px-3.5 py-1.5 border border-[#2c251e] text-[#c9bbaE] rounded-xl text-xs font-semibold ml-auto">
                 Đóng
               </button>
