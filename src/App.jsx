@@ -264,7 +264,7 @@ export default function App() {
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
   const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
   const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
-  const [modalOriginTab, setModalOriginTab] = useState('calendar'); // Theo dõi tab gốc khi mở modal
+  const [modalOriginTab, setModalOriginTab] = useState('calendar');
 
   const [editingStaff, setEditingStaff] = useState(null);
   const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
@@ -589,7 +589,6 @@ export default function App() {
   };
 
   const handleOpenShowModal = (showToEdit = null, defaultDate = null) => {
-    // Lưu lại tab hiện tại để khi đóng/lưu modal biết đường trả về đúng tab
     setModalOriginTab(activeTab);
 
     if (showToEdit) {
@@ -663,7 +662,6 @@ export default function App() {
       }
       setIsShowModalOpen(false);
 
-      // ĐIỀU HƯỚNG TRẢ VỀ ĐÚNG TAB BAN ĐẦU
       if (modalOriginTab === 'list') {
         setActiveTab('list');
       } else {
@@ -785,8 +783,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 overflow-x-hidden selection:bg-[#e0d6c8]">
-      {/* Top Header */}
-      <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-30 shadow-2xs">
+      {/* Top Header & Sticky Navigation Bar */}
+      <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-30 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -814,7 +812,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation Tabs */}
+          {/* Navigation Tabs (Cố định cùng header) */}
           <nav className="flex items-center justify-start sm:justify-end bg-[#f2ede6] p-1 rounded-xl text-xs font-medium overflow-x-auto scrollbar-none border border-[#e6dfd5]">
             <button onClick={() => setActiveTab('calendar')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
               <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
