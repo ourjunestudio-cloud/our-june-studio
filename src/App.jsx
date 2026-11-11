@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// GOOGLE CLIENT ID CỦA VIỆT (Khớp chính xác với Máy khách web 1 thuộc dự ourjunestudiocalendar-514312)
+// GOOGLE CLIENT ID CỦA VIỆT (Khớp chính xác với Máy khách web 1 thuộc dự án ourjunestudiocalendar-514312)
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
@@ -277,6 +277,7 @@ export default function App() {
         count++;
       }
     }
+    alert(`Đã đồng bộ thành công ${count} lịch lên Google Calendar!`);
   };
 
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
@@ -805,7 +806,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
-      {/* Top Header & Sticky Navigation Bar (Luôn hiển thị trên cùng khi cuộn trang) */}
+      {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center justify-between">
@@ -825,10 +826,10 @@ export default function App() {
               {isGoogleConnected && (
                 <button
                   onClick={handleSyncAllOldShows}
-                  className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#f0eae1] text-[#2c2621] border border-[#dcd2c4] hover:bg-[#e8dfd2] transition"
-                  title="Đẩy toàn bộ lịch cũ lên Google Calendar"
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
+                  title="Đồng bộ thủ công các show mới nhập từ máy tính lên Google Calendar"
                 >
-                  🔄 Đồng bộ lịch cũ
+                  📱 Đồng bộ Google (Điện thoại)
                 </button>
               )}
             </div>
@@ -1233,7 +1234,7 @@ export default function App() {
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
                 - Lịch "Ngày nghỉ" (màu tím), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
-                - Mọi lịch tạo mới sẽ tự động đồng bộ sang Google Calendar cá nhân nếu đã kết nối.
+                - Sau khi nhập lịch mới từ máy tính, mở điện thoại và bấm 📱 Đồng bộ Google (Điện thoại) để đẩy sang Google Calendar.
               </p>
             </div>
           </div>
@@ -1266,7 +1267,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block font-bold text-[#4a4036] mb-1">Số Điện Thoại</label>
-                <input type="text" placeholder="0901234567" value={staffFormData.phone} onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815]" />
+                <input type="text" placeholder="0901234567" value={staffFormData.phone} onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815]" />
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-[#e6dfd5]">
@@ -1607,10 +1608,8 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* PHẦN HIỂN THỊ EKIP VÀ CHI PHÍ BỔ SUNG TRONG MODAL CHI TIẾT NGÀY */}
                       {!isNonComm && (
                         <div className="space-y-2 text-xs">
-                          {/* Ekip */}
                           <div className="bg-[#ffffff] p-2.5 rounded-lg border border-[#e6dfd5] space-y-1.5">
                             <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Phân công Ekip & Lương:</span>
                             <div className="space-y-1">
@@ -1636,7 +1635,6 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Tài chính show */}
                           <div className="bg-[#ffffff] p-2.5 rounded-lg border border-[#e6dfd5] space-y-1.5">
                             <div className="flex justify-between items-center"><span className="text-[#635950] font-medium">Giá hợp đồng:</span><span className="font-bold text-[#1c1815]">{formatCurrency(totalPackage)}</span></div>
                             <div className="flex justify-between items-center text-[#4a4036]"><span className="font-medium">Đã đặt cọc:</span><span className="font-bold text-[#1c1815]">{formatCurrency(deposit)}</span></div>
