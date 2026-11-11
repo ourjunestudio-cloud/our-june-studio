@@ -153,7 +153,6 @@ export default function App() {
             if (response && response.access_token) {
               localStorage.setItem('google_access_token', response.access_token);
               setIsGoogleConnected(true);
-              alert("Kết nối Google Calendar thành công!");
             }
           },
         });
@@ -174,8 +173,6 @@ export default function App() {
   const handleConnectGoogle = () => {
     if (tokenClient) {
       tokenClient.requestAccessToken({ prompt: 'consent' });
-    } else {
-      alert("Google API chưa sẵn sàng, vui lòng thử lại sau vài giây!");
     }
   };
 
@@ -250,12 +247,7 @@ export default function App() {
 
   const handleSyncAllOldShows = async () => {
     const accessToken = localStorage.getItem('google_access_token');
-    if (!accessToken) {
-      alert("Vui lòng bấm 'Kết nối Google' trước khi đồng bộ!");
-      return;
-    }
-
-    if (!window.confirm(`Bạn có chắc chắn muốn đẩy toàn bộ ${shows.length} lịch hiện có lên Google Calendar không?`)) return;
+    if (!accessToken) return;
 
     let count = 0;
     for (const show of shows) {
@@ -264,7 +256,6 @@ export default function App() {
         count++;
       }
     }
-    alert(`Đã đồng bộ thành công ${count} lịch lên Google Calendar!`);
   };
 
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
@@ -514,6 +505,25 @@ export default function App() {
   };
 
   const handleToggleStaffPaid = async (showId, memberIdentifier, currentPaidStatus) => {
+    // Cập nhật ngay lập tức state giao diện trên điện thoại trước khi chờ ghi Firestore để chống độ trễ cảm ứng
+    const nextPaidStatus = !currentPaidStatus;
+
+    if (selectedCalendarDay) {
+      const updatedDayShows = selectedCalendarDay.shows.map(s => {
+        if (s.id === showId) {
+          const crewList = getNormalizeCrewList(s.assignedStaff);
+          const updatedCrewList = crewList.map(c => {
+            const identifier = c.id || c.name;
+            if (identifier === memberIdentifier) return { ...c, paid: nextPaidStatus };
+            return c;
+          });
+          return { ...s, assignedStaff: { crewList: updatedCrewList } };
+        }
+        return s;
+      });
+      setSelectedCalendarDay(prev => ({ ...prev, shows: updatedDayShows }));
+    }
+
     try {
       const showObj = shows.find(s => s.id === showId);
       if (!showObj) return;
@@ -521,23 +531,12 @@ export default function App() {
       const crewList = getNormalizeCrewList(showObj.assignedStaff);
       const updatedCrewList = crewList.map((c) => {
         const identifier = c.id || c.name;
-        if (identifier === memberIdentifier) return { ...c, paid: !currentPaidStatus };
+        if (identifier === memberIdentifier) return { ...c, paid: nextPaidStatus };
         return c;
       });
 
       const showRef = doc(db, "shows", showId);
       await updateDoc(showRef, { assignedStaff: { crewList: updatedCrewList } });
-
-      // Cập nhật ngay lập tức state đang mở modal chi tiết ngày để giao diện phản hồi tức thì
-      if (selectedCalendarDay) {
-        const updatedDayShows = selectedCalendarDay.shows.map(s => {
-          if (s.id === showId) {
-            return { ...s, assignedStaff: { crewList: updatedCrewList } };
-          }
-          return s;
-        });
-        setSelectedCalendarDay({ ...selectedCalendarDay, shows: updatedDayShows });
-      }
     } catch (error) {
       console.error("Lỗi cập nhật trạng thái thanh toán lương:", error);
     }
@@ -1616,7 +1615,7 @@ export default function App() {
                           📄 Thông tin gửi Khách xác nhận
                         </button>
                         {!isNonComm && (
-                          <button onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })} className="flex-1 bg-[#1b1815] hover:bg-[#26211c] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
+                          <button onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })} className="flex-1 bg-[#1b1815] hover:bg-[#2c251e] text-[#c9bbaE] border border-[#2c251e] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
                             👥 Thông tin gửi Nhân sự xác nhận
                           </button>
                         )}
