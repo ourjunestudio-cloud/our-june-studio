@@ -115,7 +115,6 @@ const PACKAGES = [
   'Freelance'
 ];
 
-// Hàm tự động chuẩn hóa/quy đổi tên gói cũ sang tên mới cho các show cũ
 const normalizePackageName = (pkg) => {
   if (!pkg) return pkg;
   if (pkg === 'Có khách hỏi') return 'Đợi khách';
@@ -205,7 +204,7 @@ export default function App() {
 
     let colorId = '2'; 
     if (showData.packageType === 'Ngày nghỉ') {
-      colorId = '8'; // Màu xám trên Google Calendar
+      colorId = '11'; // Màu đỏ trên Google Calendar
     } else if (showData.packageType === 'Đợi khách') {
       colorId = '5'; 
     } else if (showData.packageType === 'Gặp khách') {
@@ -748,7 +747,7 @@ export default function App() {
       }
       setStaffFormData({ name: '', role: 'Photo', phone: '' });
       setEditingStaff(null);
-      setIsStaffModalOpen(true);
+      setIsStaffModalOpen(false);
     } catch (error) {
       console.error("Lỗi lưu nhân sự:", error);
     }
@@ -934,7 +933,7 @@ export default function App() {
               </div>
 
               <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#635950] flex-wrap">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-400"></span> Ngày nghỉ</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Ngày nghỉ</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Đợi khách</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#1d4ed8]"></span> Gặp khách</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#9f1239]"></span> Makeup</span>
@@ -954,7 +953,7 @@ export default function App() {
                   const isToday = cell.dateStr === todayStr;
 
                   return (
-                    <div key={idx} onClick={() => { if (cell.dateStr) { setSelectedCalendarDay({ dateStr: cell.dateStr, shows: cell.shows, singleShowMode: cell.shows.length === 1 }); } }} className={`min-h-[90px] sm:min-h-[120px] p-1 border-r border-b border-[#e6dfd5] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#ffffff] hover:bg-[#fcfbf9]' : 'bg-[#f7f4ef]/60'} cursor-pointer`}>
+                    <div key={idx} onClick={() => { if (cell.dateStr) { setSelectedCalendarDay({ dateStr: cell.dateStr, shows: cell.shows, singleShowMode: cell.shows.length === 1 }); } }} className={`min-h-[90px] sm:min-h-[120px] p-1 border-r border-b border-[#e6dfd5] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#ffffff] hover:bg-[#fcfbf9] font-normal' : 'bg-[#f7f4ef]/60'} cursor-pointer`}>
                       <div className="flex justify-center sm:justify-start mb-1">
                         <span className={`w-5 h-5 sm:w-5.5 sm:h-5.5 flex items-center justify-center rounded-full text-[11px] sm:text-xs font-medium ${isToday ? 'bg-[#2c2621] text-[#f9f6f0] font-bold shadow-2xs' : cell.isCurrentMonth ? 'text-[#1c1815]' : 'text-[#a89f91]'}`}>{cell.dayNum}</span>
                       </div>
@@ -964,7 +963,7 @@ export default function App() {
                           const isAsk = show.packageType === 'Đợi khách';
                           const isTryDress = isNonCommercialPackage(show.packageType) && !isOff;
                           const isMakeupOnly = show.packageType === 'Makeup';
-                          const bgStyle = isOff ? 'bg-gray-100 text-gray-700 font-bold border border-gray-300' : isAsk ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' : isTryDress ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200' : isMakeupOnly ? 'bg-rose-50 text-rose-900 font-semibold border border-rose-200' : 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200';
+                          const bgStyle = isOff ? 'bg-rose-100 text-rose-900 font-bold border border-rose-300' : isAsk ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' : isTryDress ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200' : isMakeupOnly ? 'bg-rose-50 text-rose-900 font-semibold border border-rose-200' : 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200';
                           const hasMultiDays = show.endDate && show.endDate !== show.date;
                           const isStartDate = show.date === cell.dateStr;
                           const isEndDate = show.endDate === cell.dateStr;
@@ -1233,7 +1232,7 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Lịch "Ngày nghỉ" (màu xám), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
+                - Lịch "Ngày nghỉ" (màu đỏ), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
                 - Mọi lịch tạo mới sẽ tự động đồng bộ sang Google Calendar cá nhân nếu đã kết nối.
               </p>
             </div>
