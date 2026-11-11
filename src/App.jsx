@@ -204,7 +204,7 @@ export default function App() {
 
     let colorId = '2'; 
     if (showData.packageType === 'Ngày nghỉ') {
-      colorId = '11'; // Màu đỏ trên Google Calendar
+      colorId = '8'; // Màu đen/xám đậm trên Google Calendar
     } else if (showData.packageType === 'Đợi khách') {
       colorId = '5'; 
     } else if (showData.packageType === 'Gặp khách') {
@@ -933,7 +933,7 @@ export default function App() {
               </div>
 
               <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#635950] flex-wrap">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Ngày nghỉ</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-900"></span> Ngày nghỉ</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Đợi khách</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#1d4ed8]"></span> Gặp khách</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#9f1239]"></span> Makeup</span>
@@ -963,7 +963,7 @@ export default function App() {
                           const isAsk = show.packageType === 'Đợi khách';
                           const isTryDress = isNonCommercialPackage(show.packageType) && !isOff;
                           const isMakeupOnly = show.packageType === 'Makeup';
-                          const bgStyle = isOff ? 'bg-rose-100 text-rose-900 font-bold border border-rose-300' : isAsk ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' : isTryDress ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200' : isMakeupOnly ? 'bg-rose-50 text-rose-900 font-semibold border border-rose-200' : 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200';
+                          const bgStyle = isOff ? 'bg-gray-900 text-white font-bold border border-gray-900' : isAsk ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' : isTryDress ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200' : isMakeupOnly ? 'bg-rose-50 text-rose-900 font-semibold border border-rose-200' : 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200';
                           const hasMultiDays = show.endDate && show.endDate !== show.date;
                           const isStartDate = show.date === cell.dateStr;
                           const isEndDate = show.endDate === cell.dateStr;
@@ -1232,7 +1232,7 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Lịch "Ngày nghỉ" (màu đỏ), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
+                - Lịch "Ngày nghỉ" (màu đen), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
                 - Mọi lịch tạo mới sẽ tự động đồng bộ sang Google Calendar cá nhân nếu đã kết nối.
               </p>
             </div>
