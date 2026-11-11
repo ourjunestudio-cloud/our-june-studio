@@ -264,7 +264,8 @@ export default function App() {
   const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
   const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
   const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
-  
+  const [modalOriginTab, setModalOriginTab] = useState('calendar'); // Theo dõi tab gốc khi mở modal
+
   const [editingStaff, setEditingStaff] = useState(null);
   const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
 
@@ -588,6 +589,9 @@ export default function App() {
   };
 
   const handleOpenShowModal = (showToEdit = null, defaultDate = null) => {
+    // Lưu lại tab hiện tại để khi đóng/lưu modal biết đường trả về đúng tab
+    setModalOriginTab(activeTab);
+
     if (showToEdit) {
       setEditingShow(showToEdit);
       setShowFormData({
@@ -658,7 +662,13 @@ export default function App() {
         syncShowToGoogleCalendar(payload);
       }
       setIsShowModalOpen(false);
-      openDayDetailByDate(targetDate, updatedShows);
+
+      // ĐIỀU HƯỚNG TRẢ VỀ ĐÚNG TAB BAN ĐẦU
+      if (modalOriginTab === 'list') {
+        setActiveTab('list');
+      } else {
+        openDayDetailByDate(targetDate, updatedShows);
+      }
     } catch (error) {
       console.error("Lỗi lưu show:", error);
     }
@@ -1500,7 +1510,7 @@ export default function App() {
               )}
 
               <div className="flex justify-end gap-2 pt-2.5 border-t border-[#e6dfd5]">
-                <button type="button" onClick={() => { const targetDate = showFormData.date; setIsShowModalOpen(false); if (targetDate) openDayDetailByDate(targetDate); }} className="px-3 py-1 border border-[#dcd2c4] rounded text-[#635950]">Hủy</button>
+                <button type="button" onClick={() => { setIsShowModalOpen(false); setActiveTab(modalOriginTab); }} className="px-3 py-1 border border-[#dcd2c4] rounded text-[#635950]">Hủy</button>
                 <button type="submit" className="px-3 py-1 bg-[#2c2621] text-[#f9f6f0] rounded font-semibold">Lưu Lịch</button>
               </div>
             </form>
