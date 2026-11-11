@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// GOOGLE CLIENT ID CỦA VIỆT (Khớp chính xác với Máy khách web 1 thuộc dự án ourjunestudiocalendar-514312)
+// GOOGLE CLIENT ID CỦA VIỆT (Khớp chính xác với cấu hình Google Cloud)
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
@@ -266,7 +266,7 @@ export default function App() {
     }
   };
 
-  // NÚT ĐỒNG BỘ THÔNG MINH: Vừa thêm lịch mới vừa xóa các lịch đã bị xóa trên web
+  // NÚT ĐỒNG BỘ THÔNG MINH (CHỐNG TRÙNG LẶP): Kiểm tra kỹ trước khi thêm mới hoặc xóa
   const handleSmartSyncWithGoogle = async () => {
     const accessToken = localStorage.getItem('google_access_token');
     if (!accessToken) {
@@ -276,7 +276,7 @@ export default function App() {
 
     try {
       // 1. Lấy tất cả sự kiện hiện có trên Google Calendar chính
-      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
       const gData = await res.json();
@@ -285,17 +285,40 @@ export default function App() {
       let deletedCount = 0;
       let addedCount = 0;
 
-      // 2. Kiểm tra các sự kiện trên Google: Nếu lịch nào không còn tồn tại trong danh sách shows trên web thì XÓA trên Google
+      // 2. XÓA BẢN SAO TRÙNG LẶP NẾU CÓ TRÊN GOOGLE CALENDAR
+      // Gom nhóm các sự kiện Google theo summary + start date để tìm bản trùng
+      const seenEvents = new Map();
       for (const gEvent of googleEvents) {
+        if (!gEvent.summary || !gEvent.start) continue;
+        const key = `${gEvent.summary}_${gEvent.start.date || gEvent.start.dateTime}`;
+        if (seenEvents.has(key)) {
+          // Nếu đã xuất hiện trước đó nghĩa đây là bản trùng -> Xóa luôn bản trùng này
+          await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gEvent.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          });
+          deletedCount++;
+        } else {
+          seenEvents.set(key, gEvent.id);
+        }
+      }
+
+      // Lấy lại danh sách sự kiện sau khi đã lọc trùng
+      const resRefresh = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      const gDataRefreshed = await resRefresh.json();
+      const currentGoogleEvents = gDataRefreshed.items || [];
+
+      // 3. Kiểm tra lịch nào trên Google không còn tồn tại trên web thì XÓA
+      for (const gEvent of currentGoogleEvents) {
         if (!gEvent.summary) continue;
-        // Kiểm tra xem gEvent có khớp với bất kỳ show nào hiện tại không
         const matchFound = shows.some(show => {
           const expectedSummary = `[${show.packageType}] ${show.clientName}`;
           return gEvent.summary === expectedSummary && gEvent.start && gEvent.start.date === show.date;
         });
 
         if (!matchFound) {
-          // Nếu trên Google có mà trên web đã xóa -> Tiến hành xóa trên Google Calendar
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gEvent.id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -304,15 +327,22 @@ export default function App() {
         }
       }
 
-      // 3. Đẩy bù các lịch mới có trên web lên Google Calendar
+      // 4. Đẩy bù lịch mới lên Google (CHỈ ĐẨY NẾU TRÊN GOOGLE CHƯA CÓ)
       for (const show of shows) {
         if (show.date) {
-          await syncShowToGoogleCalendar(show);
-          addedCount++;
+          const expectedSummary = `[${show.packageType}] ${show.clientName}`;
+          const alreadyExistsOnGoogle = currentGoogleEvents.some(gEvent => 
+            gEvent.summary === expectedSummary && gEvent.start && gEvent.start.date === show.date
+          );
+
+          if (!alreadyExistsOnGoogle) {
+            await syncShowToGoogleCalendar(show);
+            addedCount++;
+          }
         }
       }
 
-      alert(`Đồng bộ thành công!\n- Đã thêm/cập nhật lịch mới.\n- Đã tự động xóa các lịch không còn tồn tại (${deletedCount} lịch).`);
+      alert(`Đồng bộ thông minh thành công!\n- Đã thêm mới: ${addedCount} lịch.\n- Đã dọn dẹp/xóa: ${deletedCount} lịch trùng hoặc đã xóa trên web.`);
     } catch (err) {
       console.error("Lỗi đồng bộ thông minh:", err);
       alert("Có lỗi xảy ra khi đồng bộ với Google Calendar.");
@@ -866,7 +896,7 @@ export default function App() {
                 <button
                   onClick={handleSmartSyncWithGoogle}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                  title="Đồng bộ thông minh: Thêm lịch mới & Xóa các lịch đã xóa trên web"
+                  title="Đồng bộ thông minh: Thêm lịch mới, xóa lịch thừa và lọc chống trùng lặp"
                 >
                   📱 Đồng bộ Google (Điện thoại)
                 </button>
@@ -1273,7 +1303,7 @@ export default function App() {
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
                 - Lịch "Ngày nghỉ" (màu tím), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
-                - Sau khi thêm hoặc xóa lịch trên máy tính, mở điện thoại và bấm 📱 Đồng bộ Google (Điện thoại) để lịch trên Google Calendar tự động cập nhật khớp hoàn toàn.
+                - Nút Đồng bộ thông minh sẽ tự động dọn dẹp các lịch bị nhân đôi hoặc lịch đã xóa trên web để Google Calendar luôn sạch sẽ, chính xác.
               </p>
             </div>
           </div>
