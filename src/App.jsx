@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// GOOGLE CLIENT ID CỦA VIỆT (Khớp chính xác với cấu hình Google Cloud)
+// GOOGLE CLIENT ID CỦA VIỆT
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
@@ -245,16 +245,18 @@ export default function App() {
     if (!accessToken) return;
 
     try {
-      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
       const data = await response.json();
       if (data.items) {
-        const eventMatch = data.items.find(event => 
-          event.summary && event.summary.includes(showData.clientName) &&
+        const expectedSummary = `[${showData.packageType}] ${showData.clientName}`;
+        const matchingEvents = data.items.filter(event => 
+          event.summary === expectedSummary &&
           event.start && event.start.date === showData.date
         );
-        if (eventMatch) {
+        // Xóa tất cả các bản khớp (kể cả bản trùng nếu có) để đồng bộ hoàn toàn
+        for (const eventMatch of matchingEvents) {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventMatch.id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -266,7 +268,7 @@ export default function App() {
     }
   };
 
-  // NÚT ĐỒNG BỘ THÔNG MINH (CHỐNG TRÙNG LẶP): Kiểm tra kỹ trước khi thêm mới hoặc xóa
+  // NÚT ĐỒNG BỘ THÔNG MINH (Dành cho web máy tính hoặc khi cần dọn dẹp hệ thống)
   const handleSmartSyncWithGoogle = async () => {
     const accessToken = localStorage.getItem('google_access_token');
     if (!accessToken) {
@@ -275,7 +277,6 @@ export default function App() {
     }
 
     try {
-      // 1. Lấy tất cả sự kiện hiện có trên Google Calendar chính
       const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
@@ -285,14 +286,12 @@ export default function App() {
       let deletedCount = 0;
       let addedCount = 0;
 
-      // 2. XÓA BẢN SAO TRÙNG LẶP NẾU CÓ TRÊN GOOGLE CALENDAR
-      // Gom nhóm các sự kiện Google theo summary + start date để tìm bản trùng
+      // 1. Lọc và xóa các bản trùng lặp trên Google Calendar
       const seenEvents = new Map();
       for (const gEvent of googleEvents) {
         if (!gEvent.summary || !gEvent.start) continue;
         const key = `${gEvent.summary}_${gEvent.start.date || gEvent.start.dateTime}`;
         if (seenEvents.has(key)) {
-          // Nếu đã xuất hiện trước đó nghĩa đây là bản trùng -> Xóa luôn bản trùng này
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gEvent.id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -303,14 +302,13 @@ export default function App() {
         }
       }
 
-      // Lấy lại danh sách sự kiện sau khi đã lọc trùng
       const resRefresh = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
       const gDataRefreshed = await resRefresh.json();
       const currentGoogleEvents = gDataRefreshed.items || [];
 
-      // 3. Kiểm tra lịch nào trên Google không còn tồn tại trên web thì XÓA
+      // 2. Xóa các sự kiện trên Google không còn tồn tại trên web
       for (const gEvent of currentGoogleEvents) {
         if (!gEvent.summary) continue;
         const matchFound = shows.some(show => {
@@ -327,7 +325,7 @@ export default function App() {
         }
       }
 
-      // 4. Đẩy bù lịch mới lên Google (CHỈ ĐẨY NẾU TRÊN GOOGLE CHƯA CÓ)
+      // 3. Đẩy bù các lịch mới lên Google nếu chưa có
       for (const show of shows) {
         if (show.date) {
           const expectedSummary = `[${show.packageType}] ${show.clientName}`;
@@ -342,7 +340,7 @@ export default function App() {
         }
       }
 
-      alert(`Đồng bộ thông minh thành công!\n- Đã thêm mới: ${addedCount} lịch.\n- Đã dọn dẹp/xóa: ${deletedCount} lịch trùng hoặc đã xóa trên web.`);
+      alert(`Đồng bộ thông minh thành công!\n- Đã thêm mới: ${addedCount} lịch.\n- Đã dọn dẹp/xóa: ${deletedCount} lịch thừa.`);
     } catch (err) {
       console.error("Lỗi đồng bộ thông minh:", err);
       alert("Có lỗi xảy ra khi đồng bộ với Google Calendar.");
@@ -727,6 +725,7 @@ export default function App() {
     setActiveTab('calendar');
   };
 
+  // LƯU LỊCH (THÊM HOẶC SỬA): TỰ ĐỘNG ĐẨY LÊN GOOGLE NGAY LẬP TỨC
   const handleSaveShow = async (e) => {
     e.preventDefault();
     const targetDate = showFormData.date;
@@ -744,14 +743,20 @@ export default function App() {
     try {
       let updatedShows = [...shows];
       if (editingShow) {
+        // Nếu là sửa, xóa bản cũ trên Google trước rồi đẩy bản mới lên để tránh trùng/cũ
+        await deleteShowFromGoogleCalendar(editingShow);
         const showRef = doc(db, "shows", editingShow.id);
         await updateDoc(showRef, payload);
         updatedShows = updatedShows.map(s => s.id === editingShow.id ? { ...payload, id: editingShow.id } : s);
       } else {
+        // Nếu là tạo mới
         const docRef = await addDoc(collection(db, "shows"), payload);
         updatedShows.push({ ...payload, id: docRef.id });
-        syncShowToGoogleCalendar(payload);
       }
+      
+      // Tự động đẩy lịch lên Google Calendar ngay lập tức
+      await syncShowToGoogleCalendar(payload);
+
       setIsShowModalOpen(false);
 
       if (modalOriginTab === 'list') {
@@ -764,11 +769,13 @@ export default function App() {
     }
   };
 
+  // XÓA LỊCH: TỰ ĐỘNG XÓA KHỎI GOOGLE NGAY LẬP TỨC
   const handleDeleteShow = async (id, targetDate = null) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa lịch này?")) {
       try {
         const showToDelete = shows.find(s => s.id === id);
         if (showToDelete) {
+          // Tự động xóa khỏi Google Calendar ngay lập tức
           await deleteShowFromGoogleCalendar(showToDelete);
         }
         await deleteDoc(doc(db, "shows", id));
@@ -896,7 +903,7 @@ export default function App() {
                 <button
                   onClick={handleSmartSyncWithGoogle}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                  title="Đồng bộ thông minh: Thêm lịch mới, xóa lịch thừa và lọc chống trùng lặp"
+                  title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
                 >
                   📱 Đồng bộ Google (Điện thoại)
                 </button>
@@ -1302,8 +1309,8 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Lịch "Ngày nghỉ" (màu tím), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
-                - Nút Đồng bộ thông minh sẽ tự động dọn dẹp các lịch bị nhân đôi hoặc lịch đã xóa trên web để Google Calendar luôn sạch sẽ, chính xác.
+                - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.<br/>
+                - Nút Đồng bộ thông minh ở góc trên dùng khi cần quét toàn bộ hoặc đồng bộ bù từ máy tính sang điện thoại.
               </p>
             </div>
           </div>
@@ -1851,9 +1858,9 @@ export default function App() {
                 const dateStrText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
                 let text = '';
                 if (confirmationModal.type === 'client') {
-                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
+                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
                 } else {
-                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}`;
+                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}`;
                 }
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(text).then(() => alert('Đã sao chép tin nhắn!'));
