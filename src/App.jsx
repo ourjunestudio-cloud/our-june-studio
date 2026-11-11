@@ -102,17 +102,27 @@ const Icons = {
 };
 
 const PACKAGES = [
-  'Có khách hỏi',
-  'Thử váy và trao đổi với khách',
-  'Tiệc báo hỷ',
+  'Đợi khách',
+  'Gặp khách',
+  'Tiệc cưới',
   'Đính hôn',
-  'Thành hôn',
+  'Psc',
   'Tiệc thân mật',
   'Prewedding',
   'Photoshoot',
   'Makeup',
   'Freelance'
 ];
+
+// Hàm tự động chuẩn hóa/quy đổi tên gói cũ sang tên mới cho các show cũ
+const normalizePackageName = (pkg) => {
+  if (!pkg) return pkg;
+  if (pkg === 'Có khách hỏi') return 'Đợi khách';
+  if (pkg === 'Thử váy và trao đổi với khách') return 'Gặp khách';
+  if (pkg === 'Tiệc báo hỷ') return 'Tiệc cưới';
+  if (pkg === 'Thành hôn') return 'Psc';
+  return pkg;
+};
 
 export default function App() {
   const currentVNDate = getVietnamTodayStr();
@@ -131,7 +141,14 @@ export default function App() {
 
   useEffect(() => {
     const unsubShows = onSnapshot(collection(db, "shows"), (snapshot) => {
-      const items = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      const items = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          packageType: normalizePackageName(data.packageType) // Tự động quy đổi tên gói dịch vụ cũ sang tên mới
+        };
+      });
       setShows(items);
     });
 
@@ -186,13 +203,13 @@ export default function App() {
     const endDateStr = endDateObj.toISOString().split('T')[0];
 
     let colorId = '2'; 
-    if (showData.packageType === 'Có khách hỏi') {
+    if (showData.packageType === 'Đợi khách') {
       colorId = '5'; 
-    } else if (showData.packageType === 'Thử váy và trao đổi với khách') {
+    } else if (showData.packageType === 'Gặp khách') {
       colorId = '9'; 
     } else if (showData.packageType === 'Makeup') {
       colorId = '4'; 
-    } else if (['Prewedding', 'Photoshoot', 'Tiệc báo hỷ', 'Đính hôn', 'Thành hôn', 'Tiệc thân mật'].includes(showData.packageType)) {
+    } else if (['Prewedding', 'Photoshoot', 'Tiệc cưới', 'Đính hôn', 'Psc', 'Tiệc thân mật'].includes(showData.packageType)) {
       colorId = '10'; 
     }
 
@@ -295,7 +312,7 @@ export default function App() {
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
-  const isNonCommercialPackage = (pkgType) => pkgType === 'Thử váy và trao đổi với khách' || pkgType === 'Có khách hỏi';
+  const isNonCommercialPackage = (pkgType) => pkgType === 'Gặp khách' || pkgType === 'Đợi khách';
 
   const getNormalizeCrewList = (assignedStaff) => {
     if (!assignedStaff) return [];
@@ -911,8 +928,8 @@ export default function App() {
               </div>
 
               <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#635950] flex-wrap">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Có khách hỏi</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#1d4ed8]"></span> Thử váy & trao đổi</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Đợi khách</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#1d4ed8]"></span> Gặp khách</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#9f1239]"></span> Makeup</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#166534]"></span> Show Chụp Hình</span>
               </div>
@@ -936,7 +953,7 @@ export default function App() {
                       </div>
                       <div className="space-y-1 overflow-hidden">
                         {cell.shows.map((show) => {
-                          const isAsk = show.packageType === 'Có khách hỏi';
+                          const isAsk = show.packageType === 'Đợi khách';
                           const isTryDress = isNonCommercialPackage(show.packageType);
                           const isMakeupOnly = show.packageType === 'Makeup';
                           const bgStyle = isAsk ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' : isTryDress ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200' : isMakeupOnly ? 'bg-rose-50 text-rose-900 font-semibold border border-rose-200' : 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200';
@@ -1208,7 +1225,7 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Lịch "Có khách hỏi" (màu vàng) và "Thử váy" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
+                - Lịch "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
                 - Mọi lịch tạo mới sẽ tự động đồng bộ sang Google Calendar cá nhân nếu đã kết nối.
               </p>
             </div>
