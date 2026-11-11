@@ -804,9 +804,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 overflow-x-hidden selection:bg-[#e0d6c8]">
-      {/* Top Header & Sticky Navigation Bar (Luôn hiển thị trên cùng khi cuộn trang) */}
-      <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-30 shadow-xs">
+    <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
+      {/* Top Header & Sticky Navigation Bar (Luôn hiển thị trên cùng khi cuộn trang nhờ gỡ bỏ overflow-x-hidden ở root container) */}
+      <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -857,7 +857,7 @@ export default function App() {
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3 overflow-x-hidden">
+      <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
         {/* Month / Year Bar & Quick Data Actions */}
         <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
