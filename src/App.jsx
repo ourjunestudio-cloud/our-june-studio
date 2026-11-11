@@ -204,7 +204,7 @@ export default function App() {
 
     let colorId = '2'; 
     if (showData.packageType === 'Ngày nghỉ') {
-      colorId = '3'; // Màu tím trên Google Calendar
+      colorId = '3'; 
     } else if (showData.packageType === 'Đợi khách') {
       colorId = '5'; 
     } else if (showData.packageType === 'Gặp khách') {
@@ -266,18 +266,57 @@ export default function App() {
     }
   };
 
-  const handleSyncAllOldShows = async () => {
+  // NÚT ĐỒNG BỘ THÔNG MINH: Vừa thêm lịch mới vừa xóa các lịch đã bị xóa trên web
+  const handleSmartSyncWithGoogle = async () => {
     const accessToken = localStorage.getItem('google_access_token');
-    if (!accessToken) return;
-
-    let count = 0;
-    for (const show of shows) {
-      if (show.date) {
-        await syncShowToGoogleCalendar(show);
-        count++;
-      }
+    if (!accessToken) {
+      alert("Vui lòng kết nối Google trước!");
+      return;
     }
-    alert(`Đã đồng bộ thành công ${count} lịch lên Google Calendar!`);
+
+    try {
+      // 1. Lấy tất cả sự kiện hiện có trên Google Calendar chính
+      const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      const gData = await res.json();
+      const googleEvents = gData.items || [];
+
+      let deletedCount = 0;
+      let addedCount = 0;
+
+      // 2. Kiểm tra các sự kiện trên Google: Nếu lịch nào không còn tồn tại trong danh sách shows trên web thì XÓA trên Google
+      for (const gEvent of googleEvents) {
+        if (!gEvent.summary) continue;
+        // Kiểm tra xem gEvent có khớp với bất kỳ show nào hiện tại không
+        const matchFound = shows.some(show => {
+          const expectedSummary = `[${show.packageType}] ${show.clientName}`;
+          return gEvent.summary === expectedSummary && gEvent.start && gEvent.start.date === show.date;
+        });
+
+        if (!matchFound) {
+          // Nếu trên Google có mà trên web đã xóa -> Tiến hành xóa trên Google Calendar
+          await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gEvent.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          });
+          deletedCount++;
+        }
+      }
+
+      // 3. Đẩy bù các lịch mới có trên web lên Google Calendar
+      for (const show of shows) {
+        if (show.date) {
+          await syncShowToGoogleCalendar(show);
+          addedCount++;
+        }
+      }
+
+      alert(`Đồng bộ thành công!\n- Đã thêm/cập nhật lịch mới.\n- Đã tự động xóa các lịch không còn tồn tại (${deletedCount} lịch).`);
+    } catch (err) {
+      console.error("Lỗi đồng bộ thông minh:", err);
+      alert("Có lỗi xảy ra khi đồng bộ với Google Calendar.");
+    }
   };
 
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
@@ -825,9 +864,9 @@ export default function App() {
               </button>
               {isGoogleConnected && (
                 <button
-                  onClick={handleSyncAllOldShows}
+                  onClick={handleSmartSyncWithGoogle}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                  title="Đồng bộ thủ công các show mới nhập từ máy tính lên Google Calendar"
+                  title="Đồng bộ thông minh: Thêm lịch mới & Xóa các lịch đã xóa trên web"
                 >
                   📱 Đồng bộ Google (Điện thoại)
                 </button>
@@ -1234,7 +1273,7 @@ export default function App() {
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
                 - Lịch "Ngày nghỉ" (màu tím), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
-                - Sau khi nhập lịch mới từ máy tính, mở điện thoại và bấm 📱 Đồng bộ Google (Điện thoại) để đẩy sang Google Calendar.
+                - Sau khi thêm hoặc xóa lịch trên máy tính, mở điện thoại và bấm 📱 Đồng bộ Google (Điện thoại) để lịch trên Google Calendar tự động cập nhật khớp hoàn toàn.
               </p>
             </div>
           </div>
@@ -1267,7 +1306,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block font-bold text-[#4a4036] mb-1">Số Điện Thoại</label>
-                <input type="text" placeholder="0901234567" value={staffFormData.phone} onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815]" />
+                <input type="text" placeholder="0901234567" value={staffFormData.phone} onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815]" />
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-[#e6dfd5]">
