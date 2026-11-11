@@ -102,6 +102,7 @@ const Icons = {
 };
 
 const PACKAGES = [
+  'Ngày nghỉ',
   'Đợi khách',
   'Gặp khách',
   'Tiệc cưới',
@@ -146,7 +147,7 @@ export default function App() {
         return {
           ...data,
           id: doc.id,
-          packageType: normalizePackageName(data.packageType) // Tự động quy đổi tên gói dịch vụ cũ sang tên mới
+          packageType: normalizePackageName(data.packageType)
         };
       });
       setShows(items);
@@ -203,7 +204,9 @@ export default function App() {
     const endDateStr = endDateObj.toISOString().split('T')[0];
 
     let colorId = '2'; 
-    if (showData.packageType === 'Đợi khách') {
+    if (showData.packageType === 'Ngày nghỉ') {
+      colorId = '8'; // Màu xám trên Google Calendar
+    } else if (showData.packageType === 'Đợi khách') {
       colorId = '5'; 
     } else if (showData.packageType === 'Gặp khách') {
       colorId = '9'; 
@@ -215,8 +218,10 @@ export default function App() {
 
     const eventDetails = {
       summary: `[${showData.packageType}] ${showData.clientName}`,
-      description: `SĐT: ${showData.clientPhone || 'Không có'}\nĐịa điểm: ${showData.location || 'Studio'}\nGhi chú: ${showData.notes || 'Không có'}`,
-      location: showData.location || 'Our June Studio',
+      description: showData.packageType === 'Ngày nghỉ' 
+        ? `Ghi chú: ${showData.notes || 'Không có'}` 
+        : `SĐT: ${showData.clientPhone || 'Không có'}\nĐịa điểm: ${showData.location || 'Studio'}\nGhi chú: ${showData.notes || 'Không có'}`,
+      location: showData.packageType === 'Ngày nghỉ' ? 'Cá nhân' : (showData.location || 'Our June Studio'),
       start: { date: startDate },
       end: { date: endDateStr },
       colorId: colorId,
@@ -312,7 +317,7 @@ export default function App() {
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
-  const isNonCommercialPackage = (pkgType) => pkgType === 'Gặp khách' || pkgType === 'Đợi khách';
+  const isNonCommercialPackage = (pkgType) => pkgType === 'Gặp khách' || pkgType === 'Đợi khách' || pkgType === 'Ngày nghỉ';
 
   const getNormalizeCrewList = (assignedStaff) => {
     if (!assignedStaff) return [];
@@ -660,6 +665,7 @@ export default function App() {
 
     const payload = {
       ...showFormData,
+      clientName: showFormData.packageType === 'Ngày nghỉ' ? (showFormData.clientName || 'Ngày nghỉ cá nhân') : showFormData.clientName,
       totalAmount: isNonComm ? 0 : Number(showFormData.totalAmount || 0),
       depositAmount: isNonComm ? 0 : Number(showFormData.depositAmount || 0),
       expenses: isNonComm ? [] : showFormData.expenses,
@@ -742,7 +748,7 @@ export default function App() {
       }
       setStaffFormData({ name: '', role: 'Photo', phone: '' });
       setEditingStaff(null);
-      setIsStaffModalOpen(false);
+      setIsStaffModalOpen(true);
     } catch (error) {
       console.error("Lỗi lưu nhân sự:", error);
     }
@@ -928,6 +934,7 @@ export default function App() {
               </div>
 
               <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#635950] flex-wrap">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-gray-400"></span> Ngày nghỉ</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Đợi khách</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#1d4ed8]"></span> Gặp khách</span>
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#9f1239]"></span> Makeup</span>
@@ -953,10 +960,11 @@ export default function App() {
                       </div>
                       <div className="space-y-1 overflow-hidden">
                         {cell.shows.map((show) => {
+                          const isOff = show.packageType === 'Ngày nghỉ';
                           const isAsk = show.packageType === 'Đợi khách';
-                          const isTryDress = isNonCommercialPackage(show.packageType);
+                          const isTryDress = isNonCommercialPackage(show.packageType) && !isOff;
                           const isMakeupOnly = show.packageType === 'Makeup';
-                          const bgStyle = isAsk ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' : isTryDress ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200' : isMakeupOnly ? 'bg-rose-50 text-rose-900 font-semibold border border-rose-200' : 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200';
+                          const bgStyle = isOff ? 'bg-gray-100 text-gray-700 font-bold border border-gray-300' : isAsk ? 'bg-amber-100 text-amber-900 font-bold border border-amber-300' : isTryDress ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200' : isMakeupOnly ? 'bg-rose-50 text-rose-900 font-semibold border border-rose-200' : 'bg-emerald-50 text-emerald-900 font-semibold border border-emerald-200';
                           const hasMultiDays = show.endDate && show.endDate !== show.date;
                           const isStartDate = show.date === cell.dateStr;
                           const isEndDate = show.endDate === cell.dateStr;
@@ -1225,7 +1233,7 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Lịch "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
+                - Lịch "Ngày nghỉ" (màu xám), "Đợi khách" (màu vàng) và "Gặp khách" (màu xanh dương) dùng để note lịch hẹn miễn phí.<br/>
                 - Mọi lịch tạo mới sẽ tự động đồng bộ sang Google Calendar cá nhân nếu đã kết nối.
               </p>
             </div>
@@ -1352,13 +1360,26 @@ export default function App() {
             <form onSubmit={handleSaveShow} autoComplete="off" className="p-3.5 sm:p-4 space-y-2.5 overflow-y-auto flex-1 text-[11px]">
               <div className="space-y-2.5">
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-[#4a4036]">Tên Khách Hàng *</label>
-                  <input type="text" required value={showFormData.clientName} onChange={(e) => setShowFormData({ ...showFormData, clientName: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
+                  <label className="block text-[11px] font-bold text-[#4a4036]">Gói Dịch Vụ *</label>
+                  <select value={showFormData.packageType} onChange={(e) => setShowFormData({ ...showFormData, packageType: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none">
+                    <option value="" className="bg-[#ffffff] text-[#635950]">-- Chọn Gói Dịch Vụ --</option>
+                    {PACKAGES.map((pkg) => (<option key={pkg} value={pkg} className="bg-[#ffffff] text-[#1c1815]">{pkg}</option>))}
+                  </select>
                 </div>
+
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-[#4a4036]">Số Điện Thoại</label>
-                  <input type="text" value={showFormData.clientPhone} onChange={(e) => setShowFormData({ ...showFormData, clientPhone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
+                  <label className="block text-[11px] font-bold text-[#4a4036]">
+                    {showFormData.packageType === 'Ngày nghỉ' ? 'Tiêu đề / Tên lịch nghỉ (VD: Nghỉ phép, Việc cá nhân)' : 'Tên Khách Hàng *'}
+                  </label>
+                  <input type="text" required value={showFormData.clientName} onChange={(e) => setShowFormData({ ...showFormData, clientName: e.target.value })} placeholder={showFormData.packageType === 'Ngày nghỉ' ? 'Ví dụ: Ngày nghỉ cá nhân' : 'Nhập tên khách hàng'} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
                 </div>
+
+                {showFormData.packageType !== 'Ngày nghỉ' && (
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-[#4a4036]">Số Điện Thoại</label>
+                    <input type="text" value={showFormData.clientPhone} onChange={(e) => setShowFormData({ ...showFormData, clientPhone: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
+                  </div>
+                )}
 
                 <div className="space-y-1 relative">
                   <label className="block text-[11px] font-bold text-[#4a4036]">Khoảng Ngày Lịch (Từ ngày ➔ Đến ngày) *</label>
@@ -1429,33 +1450,30 @@ export default function App() {
                   )}
                 </div>
 
+                {showFormData.packageType !== 'Ngày nghỉ' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-[#4a4036]">Giờ Bắt Đầu</label>
+                      <input type="time" value={showFormData.startTime} onChange={(e) => setShowFormData({ ...showFormData, startTime: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-[#4a4036]">Giờ Kết Thúc</label>
+                      <input type="time" value={showFormData.endTime} onChange={(e) => setShowFormData({ ...showFormData, endTime: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {showFormData.packageType !== 'Ngày nghỉ' && (
                 <div className="space-y-1">
-                  <label className="block text-[11px] font-bold text-[#4a4036]">Gói Dịch Vụ</label>
-                  <select value={showFormData.packageType} onChange={(e) => setShowFormData({ ...showFormData, packageType: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none">
-                    <option value="" className="bg-[#ffffff] text-[#635950]">-- Chọn Gói Dịch Vụ --</option>
-                    {PACKAGES.map((pkg) => (<option key={pkg} value={pkg} className="bg-[#ffffff] text-[#1c1815]">{pkg}</option>))}
-                  </select>
+                  <label className="block text-[11px] font-bold text-[#4a4036]">Địa Điểm</label>
+                  <input type="text" value={showFormData.location} onChange={(e) => setShowFormData({ ...showFormData, location: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-[#4a4036]">Giờ Bắt Đầu</label>
-                    <input type="time" value={showFormData.startTime} onChange={(e) => setShowFormData({ ...showFormData, startTime: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-[#4a4036]">Giờ Kết Thúc</label>
-                    <input type="time" value={showFormData.endTime} onChange={(e) => setShowFormData({ ...showFormData, endTime: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
-                  </div>
-                </div>
-              </div>
+              )}
 
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-[#4a4036]">Địa Điểm</label>
-                <input type="text" value={showFormData.location} onChange={(e) => setShowFormData({ ...showFormData, location: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-[#4a4036]">Ghi Chú Lịch Hẹn</label>
-                <textarea rows={2} value={showFormData.notes} onChange={(e) => setShowFormData({ ...showFormData, notes: e.target.value })} style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
+                <label className="block text-[11px] font-bold text-[#4a4036]">Ghi Chú</label>
+                <textarea rows={2} value={showFormData.notes} onChange={(e) => setShowFormData({ ...showFormData, notes: e.target.value })} placeholder="Nhập ghi chú cho ngày nghỉ hoặc lịch hẹn" style={{ fontSize: '16px' }} className="w-full px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg font-semibold text-[#1c1815] focus:outline-none" />
               </div>
 
               {!isNonCommercialPackage(showFormData.packageType) && (
@@ -1555,6 +1573,7 @@ export default function App() {
                 </div>
               ) : (
                 selectedCalendarDay.shows.map((show) => {
+                  const isOff = show.packageType === 'Ngày nghỉ';
                   const isNonComm = isNonCommercialPackage(show.packageType);
                   const totalPackage = Number(show.totalAmount || 0);
                   const deposit = Number(show.depositAmount || 0);
@@ -1571,7 +1590,7 @@ export default function App() {
                             <h4 className="font-bold text-sm text-[#1c1815]">{show.clientName}</h4>
                             <span className="text-[10px] font-bold bg-[#ffffff] border border-[#dcd2c4] text-[#1c1815] px-2 py-0.5 rounded-md">{show.packageType}</span>
                           </div>
-                          <p className="text-xs text-[#635950] font-medium mt-0.5">📞 SĐT: {show.clientPhone || 'Chưa có'}</p>
+                          {!isOff && <p className="text-xs text-[#635950] font-medium mt-0.5">📞 SĐT: {show.clientPhone || 'Chưa có'}</p>}
                           <p className="text-xs text-[#4a4036] font-medium mt-0.5">📅 Thời gian: {dateText}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1580,12 +1599,14 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                        <div className="bg-[#ffffff] p-2 rounded-lg border border-[#e6dfd5] flex items-center gap-1.5 text-[#4a4036]">
-                          <Icons.Clock className="w-3.5 h-3.5 text-[#635950] shrink-0" /><span><strong>Giờ:</strong> {show.startTime || '08:00'} - {show.endTime || '12:00'}</span>
+                      {!isOff && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div className="bg-[#ffffff] p-2 rounded-lg border border-[#e6dfd5] flex items-center gap-1.5 text-[#4a4036]">
+                            <Icons.Clock className="w-3.5 h-3.5 text-[#635950] shrink-0" /><span><strong>Giờ:</strong> {show.startTime || '08:00'} - {show.endTime || '12:00'}</span>
+                          </div>
+                          <div className="bg-[#ffffff] p-2 rounded-lg border border-[#e6dfd5] text-[#4a4036] truncate"><span>📍 <strong>Địa điểm:</strong> {show.location || 'Chưa cập nhật'}</span></div>
                         </div>
-                        <div className="bg-[#ffffff] p-2 rounded-lg border border-[#e6dfd5] text-[#4a4036] truncate"><span>📍 <strong>Địa điểm:</strong> {show.location || 'Chưa cập nhật'}</span></div>
-                      </div>
+                      )}
 
                       {/* PHẦN HIỂN THỊ EKIP VÀ CHI PHÍ BỔ SUNG TRONG MODAL CHI TIẾT NGÀY */}
                       {!isNonComm && (
@@ -1634,16 +1655,18 @@ export default function App() {
                         </div>
                       )}
 
-                      <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#e6dfd5]">
-                        <button onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })} className="flex-1 bg-[#2c2621] text-[#f9f6f0] hover:bg-[#4a4036] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
-                          📄 Thông tin gửi Khách xác nhận
-                        </button>
-                        {!isNonComm && (
-                          <button onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })} className="flex-1 bg-[#ffffff] hover:bg-[#f2ede6] text-[#1c1815] border border-[#dcd2c4] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
-                            👥 Thông tin gửi Nhân sự xác nhận
+                      {!isOff && (
+                        <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-[#e6dfd5]">
+                          <button onClick={() => setConfirmationModal({ isOpen: true, type: 'client', show })} className="flex-1 bg-[#2c2621] text-[#f9f6f0] hover:bg-[#4a4036] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
+                            📄 Thông tin gửi Khách xác nhận
                           </button>
-                        )}
-                      </div>
+                          {!isNonComm && (
+                            <button onClick={() => setConfirmationModal({ isOpen: true, type: 'staff', show })} className="flex-1 bg-[#ffffff] hover:bg-[#f2ede6] text-[#1c1815] border border-[#dcd2c4] px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition">
+                              👥 Thông tin gửi Nhân sự xác nhận
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
