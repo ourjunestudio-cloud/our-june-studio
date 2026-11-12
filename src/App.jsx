@@ -873,7 +873,9 @@ export default function App() {
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
       {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
-        <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
+        <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
+          
+          {/* Hàng trên cùng: Logo và nút Google */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -894,72 +896,77 @@ export default function App() {
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
                   title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
                 >
-                  📱 Đồng bộ Google (Điện thoại)
+                  📱 Đồng bộ Google
                 </button>
               )}
             </div>
           </div>
 
-          {/* Navigation Tabs & Quick Links */}
-          <nav className="flex items-center justify-start sm:justify-end bg-[#f2ede6] p-1 rounded-xl text-xs font-medium overflow-x-auto scrollbar-none border border-[#e6dfd5] gap-1">
-            <button onClick={() => setActiveTab('calendar')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
-              <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
-              <span>Calendar</span>
-            </button>
-            <button onClick={() => setActiveTab('list')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'list' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
-              <Icons.Camera className="w-3.5 h-3.5 text-[#85786c]" />
-              <span>Danh Sách</span>
-            </button>
-            <button onClick={() => setActiveTab('analytics')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'analytics' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
-              <Icons.TrendingUp className="w-3.5 h-3.5 text-[#137333]" />
-              <span>Thống Kê</span>
-            </button>
-            <button onClick={() => setActiveTab('staff')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'staff' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
-              <Icons.Users className="w-3.5 h-3.5 text-[#85786c]" />
-              <span>Ekip</span>
-            </button>
+          {/* Hàng điều hướng chia thành 2 tầng rõ rệt: Tầng 1 (Tab nội bộ) & Tầng 2 (4 Nút lối tắt) */}
+          <div className="flex flex-col gap-1.5 bg-[#f2ede6] p-1.5 rounded-xl border border-[#e6dfd5]">
+            
+            {/* Tầng 1: Các tab chức năng chính */}
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+              <button onClick={() => setActiveTab('calendar')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
+                <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
+                <span>Calendar</span>
+              </button>
+              <button onClick={() => setActiveTab('list')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'list' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
+                <Icons.Camera className="w-3.5 h-3.5 text-[#85786c]" />
+                <span>Danh Sách</span>
+              </button>
+              <button onClick={() => setActiveTab('analytics')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'analytics' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
+                <Icons.TrendingUp className="w-3.5 h-3.5 text-[#137333]" />
+                <span>Thống Kê</span>
+              </button>
+              <button onClick={() => setActiveTab('staff')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'staff' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
+                <Icons.Users className="w-3.5 h-3.5 text-[#85786c]" />
+                <span>Ekip</span>
+              </button>
+            </div>
 
-            {/* Đường phân cách nhỏ */}
-            <div className="h-4 w-px bg-[#dcd2c4] mx-0.5 shrink-0"></div>
+            {/* Tầng 2: 4 Nút lối tắt nhanh đến các trang phụ */}
+            <div className="grid grid-cols-4 gap-1 pt-1 border-t border-[#e6dfd5]">
+              <a
+                href="https://beacons.ai/ourjune.studio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở trang Báo giá"
+              >
+                <span>💰 Báo giá</span>
+              </a>
+              <a
+                href="https://shotpik.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Album trả khách"
+              >
+                <span>📂 Album</span>
+              </a>
+              <a
+                href="https://www.ourjunestudio.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Web chính thức"
+              >
+                <span>🌐 Web chính</span>
+              </a>
+              <a
+                href="https://ourjunestudio.shotpik.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Portfolio Ảnh Film"
+              >
+                <span>🎞️ Film</span>
+              </a>
+            </div>
 
-            {/* 4 Nút Lối Tắt Nhanh Đến Các Trang Phụ */}
-            <a
-              href="https://beacons.ai/ourjune.studio"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
-              title="Mở trang Báo giá"
-            >
-              <span>💰 Báo giá</span>
-            </a>
-            <a
-              href="https://shotpik.com/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
-              title="Mở Album trả khách"
-            >
-              <span>📂 Album</span>
-            </a>
-            <a
-              href="https://www.ourjunestudio.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
-              title="Mở Web chính thức"
-            >
-              <span>🌐 Web chính</span>
-            </a>
-            <a
-              href="https://ourjunestudio.shotpik.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
-              title="Mở Portfolio Ảnh Film"
-            >
-              <span>🎞️ Film</span>
-            </a>
-          </nav>
+          </div>
+
         </div>
       </header>
 
