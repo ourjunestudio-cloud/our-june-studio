@@ -156,6 +156,7 @@ export default function App() {
   const [tokenClient, setTokenClient] = useState(null);
 
   const printableCardRef = useRef(null);
+  const exportCardRef = useRef(null); // Ref riêng biệt cho bản xuất ảnh hoàn hảo 100%
 
   useEffect(() => {
     const unsubShows = onSnapshot(collection(db, "shows"), (snapshot) => {
@@ -883,19 +884,21 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // Hàm xuất ảnh sử dụng node riêng biệt chuẩn xác 100% không bị lệch
   const handleDownloadCardAsJPEG = async () => {
-    if (!printableCardRef.current) return;
+    if (!exportCardRef.current) return;
     if (!window.html2canvas) {
       alert("Hệ thống đang tải thư viện, vui lòng thử lại sau 2 giây!");
       return;
     }
 
     try {
-      const canvas = await window.html2canvas(printableCardRef.current, {
+      const canvas = await window.html2canvas(exportCardRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
+        windowWidth: 420, // Ép cứng khổ rộng giả lập chuẩn desktop mobile view
       });
 
       canvas.toBlob(async (blob) => {
@@ -1824,6 +1827,7 @@ export default function App() {
               <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="text-[#635950] hover:text-[#1c1815] p-1"><Icons.X className="w-5 h-5" /></button>
             </div>
 
+            {/* Vùng hiển thị trên màn hình giao diện web */}
             <div ref={printableCardRef} className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
               <div className="text-center border-b border-[#e6dfd5] pb-3 space-y-1">
                 <span className="font-bold text-sm tracking-tight text-[#1c1815]">OUR JUNE STUDIO</span>
@@ -1921,6 +1925,94 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* VÙNG ẨN (OFF-SCREEN) DÀNH RIÊNG ĐỂ XUẤT ẢNH JPEG CHUẨN XÁC TUỆT ĐỐI */}
+            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '390px' }}>
+              <div ref={exportCardRef} className="p-6 bg-[#ffffff] space-y-4 text-[#1c1815]" style={{ fontFamily: 'sans-serif' }}>
+                <div style={{ textAlign: 'center', borderBottom: '1px solid #e6dfd5', paddingBottom: '12px', marginBottom: '16px' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#1c1815', letterSpacing: '-0.5px' }}>OUR JUNE STUDIO</div>
+                  <div style={{ fontSize: '10px', color: '#635950', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>
+                    {confirmationModal.type === 'client' ? 'XÁC NHẬN THÔNG TIN LỊCH HẸN & DỊCH VỤ' : 'THÔNG TIN PHÂN CÔNG LỊCH EKIP CHỤP'}
+                  </div>
+                </div>
+
+                {confirmationModal.type === 'client' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '12px' }}>
+                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Khách hàng:</span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.clientName}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Số điện thoại:</span><strong style={{ color: '#4a4036' }}>{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Gói dịch vụ:</span><span style={{ fontWeight: 'bold', background: '#ffffff', color: '#1c1815', border: '1px solid #dcd2c4', padding: '2px 8px', borderRadius: '4px', fontSize: '10px' }}>{confirmationModal.show.packageType}</span></div>
+                    </div>
+
+                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}>
+                        <span style={{ color: '#635950' }}>Thời gian:</span>
+                        <strong style={{ color: '#1c1815' }}>
+                          {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
+                            ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} đến ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
+                            : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Giờ:</span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Địa điểm:</span><strong style={{ color: '#1c1815', maxWidth: '200px', textAlign: 'right' }}>{confirmationModal.show.location || 'Tại Studio Our June'}</strong></div>
+                    </div>
+
+                    {!isNonCommercialPackage(confirmationModal.show.packageType) && (
+                      <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'between', color: '#4a4036' }}><span>Giá hợp đồng:</span><strong style={{ color: '#1c1815' }}>{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'between', color: '#4a4036' }}><span>Đã đặt cọc:</span><strong style={{ color: '#1c1815' }}>{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'between', color: '#a51d24', fontWeight: 'bold', borderTop: '1px solid #e6dfd5', paddingTop: '8px', fontSize: '13px' }}>
+                          <span>Còn lại cần thanh toán:</span>
+                          <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '11px', color: '#635950', textTransform: 'uppercase' }}>GHI CHÚ:</span>
+                      <p style={{ color: '#1c1815', lineHeight: '1.4', whiteSpace: 'pre-wrap', margin: 0 }}>{confirmationModal.show.notes || 'Không có ghi chú'}</p>
+                    </div>
+                  </div>
+                )}
+
+                {confirmationModal.type === 'staff' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '12px' }}>
+                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Tên Show / Gói:</span><span style={{ fontWeight: 'bold', color: '#1c1815' }}>{confirmationModal.show.packageType}</span></div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Tên Khách Hàng:</span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.clientName}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>SĐT Khách:</span><strong style={{ color: '#4a4036' }}>{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    </div>
+
+                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}>
+                        <span style={{ color: '#635950' }}>Thời gian:</span>
+                        <strong style={{ color: '#1c1815' }}>
+                          {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
+                            ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} đến ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
+                            : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Giờ làm việc:</span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'between' }}><span style={{ color: '#635950' }}>Địa điểm:</span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.location || 'Tại Studio'}</strong></div>
+                    </div>
+
+                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '11px', color: '#635950', textTransform: 'uppercase' }}>Phân công Nhân sự Ekip:</span>
+                      {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
+                        <div key={c.id || i} style={{ display: 'flex', justifyContent: 'between', borderBottom: '1px solid #e6dfd5', paddingBottom: '4px' }}>
+                          <span style={{ color: '#635950' }}>{c.role}:</span><strong style={{ color: '#1c1815' }}>{c.name}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontWeight: 'bold', fontSize: '11px', color: '#635950', textTransform: 'uppercase' }}>Ghi chú Ekip:</span>
+                      <p style={{ color: '#1c1815', lineHeight: '1.4', whiteSpace: 'pre-wrap', margin: 0 }}>{confirmationModal.show.notes || 'Không có'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex flex-col sm:flex-row gap-2">
