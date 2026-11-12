@@ -255,7 +255,6 @@ export default function App() {
           event.summary === expectedSummary &&
           event.start && event.start.date === showData.date
         );
-        // Xóa tất cả các bản khớp (kể cả bản trùng nếu có) để đồng bộ hoàn toàn
         for (const eventMatch of matchingEvents) {
           await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventMatch.id}`, {
             method: 'DELETE',
@@ -268,7 +267,6 @@ export default function App() {
     }
   };
 
-  // NÚT ĐỒNG BỘ THÔNG MINH (Dành cho web máy tính hoặc khi cần dọn dẹp hệ thống)
   const handleSmartSyncWithGoogle = async () => {
     const accessToken = localStorage.getItem('google_access_token');
     if (!accessToken) {
@@ -286,7 +284,6 @@ export default function App() {
       let deletedCount = 0;
       let addedCount = 0;
 
-      // 1. Lọc và xóa các bản trùng lặp trên Google Calendar
       const seenEvents = new Map();
       for (const gEvent of googleEvents) {
         if (!gEvent.summary || !gEvent.start) continue;
@@ -308,7 +305,6 @@ export default function App() {
       const gDataRefreshed = await resRefresh.json();
       const currentGoogleEvents = gDataRefreshed.items || [];
 
-      // 2. Xóa các sự kiện trên Google không còn tồn tại trên web
       for (const gEvent of currentGoogleEvents) {
         if (!gEvent.summary) continue;
         const matchFound = shows.some(show => {
@@ -325,7 +321,6 @@ export default function App() {
         }
       }
 
-      // 3. Đẩy bù các lịch mới lên Google nếu chưa có
       for (const show of shows) {
         if (show.date) {
           const expectedSummary = `[${show.packageType}] ${show.clientName}`;
@@ -725,7 +720,6 @@ export default function App() {
     setActiveTab('calendar');
   };
 
-  // LƯU LỊCH (THÊM HOẶC SỬA): TỰ ĐỘNG ĐẨY LÊN GOOGLE NGAY LẬP TỨC
   const handleSaveShow = async (e) => {
     e.preventDefault();
     const targetDate = showFormData.date;
@@ -743,18 +737,15 @@ export default function App() {
     try {
       let updatedShows = [...shows];
       if (editingShow) {
-        // Nếu là sửa, xóa bản cũ trên Google trước rồi đẩy bản mới lên để tránh trùng/cũ
         await deleteShowFromGoogleCalendar(editingShow);
         const showRef = doc(db, "shows", editingShow.id);
         await updateDoc(showRef, payload);
         updatedShows = updatedShows.map(s => s.id === editingShow.id ? { ...payload, id: editingShow.id } : s);
       } else {
-        // Nếu là tạo mới
         const docRef = await addDoc(collection(db, "shows"), payload);
         updatedShows.push({ ...payload, id: docRef.id });
       }
       
-      // Tự động đẩy lịch lên Google Calendar ngay lập tức
       await syncShowToGoogleCalendar(payload);
 
       setIsShowModalOpen(false);
@@ -769,13 +760,11 @@ export default function App() {
     }
   };
 
-  // XÓA LỊCH: TỰ ĐỘNG XÓA KHỎI GOOGLE NGAY LẬP TỨC
   const handleDeleteShow = async (id, targetDate = null) => {
     if (window.confirm("Bạn có chắc chắn muốn xóa lịch này?")) {
       try {
         const showToDelete = shows.find(s => s.id === id);
         if (showToDelete) {
-          // Tự động xóa khỏi Google Calendar ngay lập tức
           await deleteShowFromGoogleCalendar(showToDelete);
         }
         await deleteDoc(doc(db, "shows", id));
@@ -911,8 +900,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <nav className="flex items-center justify-start sm:justify-end bg-[#f2ede6] p-1 rounded-xl text-xs font-medium overflow-x-auto scrollbar-none border border-[#e6dfd5]">
+          {/* Navigation Tabs & Quick Links */}
+          <nav className="flex items-center justify-start sm:justify-end bg-[#f2ede6] p-1 rounded-xl text-xs font-medium overflow-x-auto scrollbar-none border border-[#e6dfd5] gap-1">
             <button onClick={() => setActiveTab('calendar')} className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
               <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
               <span>Calendar</span>
@@ -929,6 +918,47 @@ export default function App() {
               <Icons.Users className="w-3.5 h-3.5 text-[#85786c]" />
               <span>Ekip</span>
             </button>
+
+            {/* Đường phân cách nhỏ */}
+            <div className="h-4 w-px bg-[#dcd2c4] mx-0.5 shrink-0"></div>
+
+            {/* 4 Nút Lối Tắt Nhanh Đến Các Trang Phụ */}
+            <a
+              href="https://beacons.ai/ourjune.studio"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
+              title="Mở trang Báo giá"
+            >
+              <span>💰 Báo giá</span>
+            </a>
+            <a
+              href="https://shotpik.com/dashboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
+              title="Mở Album trả khách"
+            >
+              <span>📂 Album</span>
+            </a>
+            <a
+              href="https://www.ourjunestudio.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
+              title="Mở Web chính thức"
+            >
+              <span>🌐 Web chính</span>
+            </a>
+            <a
+              href="https://ourjunestudio.shotpik.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 rounded-lg text-[#635950] hover:text-[#1c1815] hover:bg-[#ffffff] transition-all flex items-center gap-1 whitespace-nowrap shrink-0"
+              title="Mở Portfolio Ảnh Film"
+            >
+              <span>🎞️ Film</span>
+            </a>
           </nav>
         </div>
       </header>
