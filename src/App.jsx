@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
 
@@ -139,6 +139,8 @@ export default function App() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
 
+  const printableCardRef = useRef(null);
+
   useEffect(() => {
     const unsubShows = onSnapshot(collection(db, "shows"), (snapshot) => {
       const items = snapshot.docs.map(doc => {
@@ -180,6 +182,12 @@ export default function App() {
       }
     };
     document.body.appendChild(script);
+
+    // Tải html2canvas để render ảnh JPEG phiếu xác nhận
+    const html2canvasScript = document.createElement('script');
+    html2canvasScript.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+    html2canvasScript.async = true;
+    document.body.appendChild(html2canvasScript);
 
     return () => {
       unsubShows();
@@ -860,6 +868,35 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // Hàm tải phiếu xác nhận thành file JPEG chất lượng cao
+  const handleDownloadCardAsJPEG = async () => {
+    if (!printableCardRef.current) return;
+    if (!window.html2canvas) {
+      alert("Hệ thống đang tải thư viện chụp ảnh, vui lòng thử lại sau 2 giây!");
+      return;
+    }
+
+    try {
+      const canvas = await window.html2canvas(printableCardRef.current, {
+        scale: 2, // Tăng độ sắc nét Retina
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      const imageURL = canvas.toDataURL('image/jpeg', 0.95);
+      const link = document.createElement('a');
+      link.href = imageURL;
+      const clientOrShowName = confirmationModal.show?.clientName || 'PhieuXacNhan';
+      link.download = `OurJune_${confirmationModal.type}_${clientOrShowName.replace(/\s+/g, '_')}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Lỗi tải ảnh JPEG:", err);
+      alert("Không thể tải ảnh, vui lòng thử lại.");
+    }
+  };
+
   const renderStatusBadge = (status) => {
     switch (status) {
       case 'Chưa cọc': return <span className="bg-[#f0eae1] text-[#7a6e62] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#dcd2c4]">Chưa cọc</span>;
@@ -875,7 +912,6 @@ export default function App() {
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
-          {/* Hàng trên cùng: Logo và nút Google */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -894,7 +930,6 @@ export default function App() {
                 <button
                   onClick={handleSmartSyncWithGoogle}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                  title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
                 >
                   📱 Đồng bộ Google
                 </button>
@@ -902,10 +937,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Hàng điều hướng chia thành 2 tầng rõ rệt: Tầng 1 (Tab nội bộ) & Tầng 2 (4 Nút lối tắt) */}
           <div className="flex flex-col gap-1.5 bg-[#f2ede6] p-1.5 rounded-xl border border-[#e6dfd5]">
-            
-            {/* Tầng 1: Các tab chức năng chính */}
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
               <button onClick={() => setActiveTab('calendar')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
                 <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
@@ -925,46 +957,12 @@ export default function App() {
               </button>
             </div>
 
-            {/* Tầng 2: 4 Nút lối tắt nhanh đến các trang phụ */}
             <div className="grid grid-cols-4 gap-1 pt-1 border-t border-[#e6dfd5]">
-              <a
-                href="https://beacons.ai/ourjune.studio"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
-                title="Mở trang Báo giá"
-              >
-                <span>💰 Báo giá</span>
-              </a>
-              <a
-                href="https://shotpik.com/dashboard"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
-                title="Mở Album trả khách"
-              >
-                <span>📂 Album</span>
-              </a>
-              <a
-                href="https://www.ourjunestudio.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
-                title="Mở Web chính thức"
-              >
-                <span>🌐 Web chính</span>
-              </a>
-              <a
-                href="https://ourjunestudio.shotpik.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
-                title="Mở Portfolio Ảnh Film"
-              >
-                <span>🎞️ Film</span>
-              </a>
+              <a href="https://beacons.ai/ourjune.studio" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">💰 Báo giá</a>
+              <a href="https://shotpik.com/dashboard" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">📂 Album</a>
+              <a href="https://www.ourjunestudio.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">🌐 Web chính</a>
+              <a href="https://ourjunestudio.shotpik.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">🎞️ Film</a>
             </div>
-
           </div>
 
         </div>
@@ -972,7 +970,6 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
-        {/* Month / Year Bar & Quick Data Actions */}
         <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-[#635950] uppercase tracking-wider shrink-0">Thời gian:</span>
@@ -1034,7 +1031,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* TAB 1: GOOGLE CALENDAR VIEW */}
+        {/* TAB 1: CALENDAR VIEW */}
         {activeTab === 'calendar' && (
           <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 sm:p-4 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
@@ -1055,7 +1052,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Google Calendar Grid */}
             <div className="w-full overflow-x-auto">
               <div className="grid grid-cols-7 border-b border-[#e6dfd5] text-center pb-2 min-w-[320px]">
                 {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (<div key={idx} className="text-xs font-semibold text-[#635950]">{dayName}</div>))}
@@ -1108,7 +1104,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: SHOW LIST VIEW */}
+        {/* TAB 2: LIST VIEW */}
         {activeTab === 'list' && (
           <div className="space-y-3">
             <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-2 justify-between">
@@ -1204,7 +1200,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: YEARLY ANALYTICS */}
+        {/* TAB 3: ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-lg space-y-3">
@@ -1309,7 +1305,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: STAFF MANAGEMENT */}
+        {/* TAB 4: STAFF */}
         {activeTab === 'staff' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-4">
@@ -1664,7 +1660,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: CALENDAR DAY DETAIL */}
+      {/* MODAL: DAY DETAIL */}
       {selectedCalendarDay && !confirmationModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1793,7 +1789,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EXPORT CONFIRMATION CARDS (Lớp nền che kín & làm mờ hoàn toàn các bảng phía sau) */}
+      {/* MODAL: CONFIRMATION CARDS WITH DOWNLOAD JPEG BUTTON */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
@@ -1804,7 +1800,8 @@ export default function App() {
               <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="text-[#635950] hover:text-[#1c1815] p-1"><Icons.X className="w-5 h-5" /></button>
             </div>
 
-            <div className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
+            {/* Phần nội dung phiếu được bọc ref để chụp ảnh JPEG chính xác tuyệt đối */}
+            <div ref={printableCardRef} className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
               <div className="text-center border-b border-[#e6dfd5] pb-3 space-y-1">
                 <span className="font-bold text-sm tracking-tight text-[#1c1815]">OUR JUNE STUDIO</span>
                 <p className="text-[10px] text-[#635950] font-semibold uppercase tracking-widest">
@@ -1889,23 +1886,28 @@ export default function App() {
               )}
             </div>
 
-            <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex justify-between gap-2">
+            <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex flex-col sm:flex-row gap-2">
               <button onClick={() => {
                 const show = confirmationModal.show;
                 const dateStrText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
                 let text = '';
                 if (confirmationModal.type === 'client') {
-                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
+                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
                 } else {
-                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}`;
+                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}`;
                 }
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(text).then(() => alert('Đã sao chép tin nhắn!'));
                 }
-              }} className="flex-1 bg-[#2c2621] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#4a4036]">
+              }} className="flex-1 bg-[#2c2621] text-[#f9f6f0] px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#4a4036] flex items-center justify-center gap-1">
                 📋 Sao Chép Tin Nhắn
               </button>
-              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-4 py-1.5 border border-[#e6dfd5] text-[#635950] rounded-xl text-xs font-semibold">Đóng</button>
+
+              <button onClick={handleDownloadCardAsJPEG} className="flex-1 bg-[#137333] text-[#ffffff] px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#0f5c28] flex items-center justify-center gap-1 shadow-xs">
+                📥 Tải Phiếu Ảnh (JPEG)
+              </button>
+
+              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-3 py-2 border border-[#e6dfd5] text-[#635950] rounded-xl text-xs font-semibold">Đóng</button>
             </div>
           </div>
         </div>
