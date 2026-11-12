@@ -88,6 +88,17 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
+  Location: (props) => (
+    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+  Note: (props) => (
+    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  ),
   X: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -97,6 +108,11 @@ const Icons = {
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+  User: (props) => (
+    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
     </svg>
   )
 };
@@ -867,7 +883,6 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // Hàm tải ảnh JPEG tích hợp Web Share API cho điện thoại để lưu thẳng vào Album ảnh
   const handleDownloadCardAsJPEG = async () => {
     if (!printableCardRef.current) return;
     if (!window.html2canvas) {
@@ -880,6 +895,7 @@ export default function App() {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
+        logging: false,
       });
 
       canvas.toBlob(async (blob) => {
@@ -888,7 +904,6 @@ export default function App() {
         const fileName = `OurJune_${confirmationModal.type}_${clientOrShowName.replace(/\s+/g, '_')}.jpg`;
         const file = new File([blob], fileName, { type: 'image/jpeg' });
 
-        // Nếu trình duyệt di động hỗ trợ Web Share API (chia sẻ tệp trực tiếp lên Album/Zalo/Messenger)
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
@@ -902,7 +917,6 @@ export default function App() {
           }
         }
 
-        // Fallback cho PC hoặc trình duyệt không hỗ trợ Web Share: Tải xuống file thông thường
         const imageURL = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = imageURL;
@@ -930,7 +944,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
-      {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
@@ -990,7 +1003,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
         <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
@@ -1018,7 +1030,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Financial Metrics Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
@@ -1053,7 +1064,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* TAB 1: CALENDAR VIEW */}
         {activeTab === 'calendar' && (
           <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 sm:p-4 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
@@ -1126,7 +1136,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: LIST VIEW */}
         {activeTab === 'list' && (
           <div className="space-y-3">
             <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-2 justify-between">
@@ -1222,7 +1231,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-lg space-y-3">
@@ -1327,7 +1335,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: STAFF */}
         {activeTab === 'staff' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-4">
@@ -1372,7 +1379,6 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL: STAFF FORM */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-sm overflow-hidden">
@@ -1410,7 +1416,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: STAFF YEARLY SCHEDULE */}
       {selectedStaffForModal && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
@@ -1479,7 +1484,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: SHOW FORM */}
       {isShowModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg my-6 overflow-hidden flex flex-col max-h-[90vh]">
@@ -1682,7 +1686,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: DAY DETAIL */}
       {selectedCalendarDay && !confirmationModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1811,7 +1814,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: CONFIRMATION CARDS WITH MOBILE WEB SHARE API */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
@@ -1833,29 +1835,35 @@ export default function App() {
               {confirmationModal.type === 'client' && (
                 <div className="space-y-3 text-xs">
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                    <div className="flex justify-between"><span className="text-[#635950]">Khách hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">Gói dịch vụ:</span><span className="font-bold bg-[#ffffff] text-[#1c1815] border border-[#dcd2c4] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-[#635950]">Khách hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
+                    <div className="flex justify-between items-center"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    <div className="flex justify-between items-center"><span className="text-[#635950]">Gói dịch vụ:</span><span className="font-bold bg-[#ffffff] text-[#1c1815] border border-[#dcd2c4] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
                   </div>
 
-                  <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
-                    <div className="flex justify-between">
-                      <span className="text-[#635950]">📅 Thời gian:</span>
+                  <div className="space-y-2 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" /> Thời gian:</span>
                       <strong className="text-[#1c1815]">
                         {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
                           ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
                           : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
-                    <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815] text-right truncate max-w-[200px]">{confirmationModal.show.location || 'Tại Studio Our June'}</strong></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Clock className="w-3.5 h-3.5 text-[#85786c]" /> Giờ:</span>
+                      <strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Location className="w-3.5 h-3.5 text-[#85786c]" /> Địa điểm:</span>
+                      <strong className="text-[#1c1815] text-right truncate max-w-[200px]">{confirmationModal.show.location || 'Tại Studio Our June'}</strong>
+                    </div>
                   </div>
 
                   {!isNonCommercialPackage(confirmationModal.show.packageType) && (
                     <div className="bg-[#f7f4ef] p-3.5 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                      <div className="flex justify-between text-[#4a4036]"><span>Giá hợp đồng:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
-                      <div className="flex justify-between text-[#4a4036]"><span>Đã đặt cọc:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
-                      <div className="flex justify-between text-rose-700 font-bold border-t border-[#e6dfd5] pt-1.5 text-sm">
+                      <div className="flex justify-between items-center text-[#4a4036]"><span>Giá hợp đồng:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
+                      <div className="flex justify-between items-center text-[#4a4036]"><span>Đã đặt cọc:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
+                      <div className="flex justify-between items-center text-rose-700 font-bold border-t border-[#e6dfd5] pt-1.5 text-sm">
                         <span>Còn lại cần thanh toán:</span>
                         <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
                       </div>
@@ -1863,7 +1871,9 @@ export default function App() {
                   )}
 
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1">
-                    <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">📝 Ghi chú:</span>
+                    <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider flex items-center gap-1.5">
+                      <Icons.Note className="w-3.5 h-3.5 text-[#85786c]" /> GHI CHÚ:
+                    </span>
                     <p className="text-[#1c1815] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
                   </div>
                 </div>
@@ -1872,29 +1882,35 @@ export default function App() {
               {confirmationModal.type === 'staff' && (
                 <div className="space-y-3 text-xs">
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                    <div className="flex justify-between"><span className="text-[#635950]">Tên Show / Gói:</span><span className="font-bold text-[#1c1815]">{confirmationModal.show.packageType}</span></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">Tên Khách Hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    <div className="flex justify-between items-center"><span className="text-[#635950]">Tên Show / Gói:</span><span className="font-bold text-[#1c1815]">{confirmationModal.show.packageType}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-[#635950]">Tên Khách Hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
+                    <div className="flex justify-between items-center"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
                   </div>
 
-                  <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
-                    <div className="flex justify-between">
-                      <span className="text-[#635950]">📅 Thời gian:</span>
+                  <div className="space-y-2 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" /> Thời gian:</span>
                       <strong className="text-[#1c1815]">
                         {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
                           ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
                           : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
-                    <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ làm việc:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815]">{confirmationModal.show.location || 'Tại Studio'}</strong></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Clock className="w-3.5 h-3.5 text-[#85786c]" /> Giờ làm việc:</span>
+                      <strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Location className="w-3.5 h-3.5 text-[#85786c]" /> Địa điểm:</span>
+                      <strong className="text-[#1c1815]">{confirmationModal.show.location || 'Tại Studio'}</strong>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
                     <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Phân công Nhân sự Ekip:</span>
                     {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
-                      <div key={c.id || i} className="flex justify-between border-b border-[#e6dfd5] pb-1 last:border-none">
-                        <span className="text-[#635950]">👤 {c.role}:</span><strong className="text-[#1c1815]">{c.name}</strong>
+                      <div key={c.id || i} className="flex justify-between items-center border-b border-[#e6dfd5] pb-1 last:border-none">
+                        <span className="text-[#635950] flex items-center gap-1.5"><Icons.User className="w-3.5 h-3.5 text-[#85786c]" /> {c.role}:</span><strong className="text-[#1c1815]">{c.name}</strong>
                       </div>
                     ))}
                   </div>
