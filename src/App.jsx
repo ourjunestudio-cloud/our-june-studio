@@ -1892,18 +1892,57 @@ export default function App() {
             <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex justify-between gap-2">
               <button onClick={() => {
                 const show = confirmationModal.show;
-                const dateStrText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
+                const dateStrText = show.endDate && show.endDate !== show.date 
+                  ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}` 
+                  : new Date(show.date).toLocaleDateString('vi-VN');
+                
                 let text = '';
                 if (confirmationModal.type === 'client') {
-                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
+                  const total = Number(show.totalAmount || 0);
+                  const deposit = Number(show.depositAmount || 0);
+                  const remaining = total - deposit;
+
+                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH HẸN & DỊCH VỤ\n` +
+                         `----------------------------------------\n` +
+                         `- Khách hàng: ${show.clientName}\n` +
+                         `- SĐT: ${show.clientPhone || 'Chưa cung cấp'}\n` +
+                         `- Gói dịch vụ: ${show.packageType}\n` +
+                         `- Ngày: ${dateStrText}\n` +
+                         `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
+                         `- Địa điểm: ${show.location || 'Tại Studio Our June'}\n`;
+                  
+                  if (!isNonCommercialPackage(show.packageType)) {
+                    text += `- Giá hợp đồng: ${formatCurrency(total)}\n` +
+                            `- Đã đặt cọc: ${formatCurrency(deposit)}\n` +
+                            `- Còn lại cần thanh toán: ${formatCurrency(remaining)}\n`;
+                  }
+
+                  text += `- Ghi chú: ${show.notes || 'Không có'}\n` +
+                          `----------------------------------------\n` +
+                          `Cảm ơn bạn đã đồng hành cùng Our June Studio!`;
                 } else {
-                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}`;
+                  const crewText = getNormalizeCrewList(show.assignedStaff)
+                    .map(c => `+ ${c.role}: ${c.name}`)
+                    .join('\n');
+
+                  text = `[OUR JUNE STUDIO] LỊCH PHÂN CÔNG EKIP CHỤP\n` +
+                         `----------------------------------------\n` +
+                         `- Gói / Show: ${show.packageType}\n` +
+                         `- Khách hàng: ${show.clientName} (SĐT: ${show.clientPhone || 'Chưa có'})\n` +
+                         `- Ngày: ${dateStrText}\n` +
+                         `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
+                         `- Địa điểm: ${show.location || 'Tại Studio'}\n` +
+                         `- Ekip phụ trách:\n${crewText || 'Chưa phân công'}\n` +
+                         `- Ghi chú: ${show.notes || 'Không có'}\n` +
+                         `----------------------------------------\n` +
+                         `Mọi người chú ý thời gian chuẩn bị nhé!`;
                 }
+
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                  navigator.clipboard.writeText(text).then(() => alert('Đã sao chép tin nhắn!'));
+                  navigator.clipboard.writeText(text).then(() => alert('Đã sao chép đầy đủ nội dung tin nhắn vào bộ nhớ tạm!'));
                 }
               }} className="flex-1 bg-[#2c2621] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#4a4036]">
-                📋 Sao Chép Tin Nhắn
+                📋 Sao Chép Tin Nhắn Đầy Đủ
               </button>
               <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-4 py-1.5 border border-[#e6dfd5] text-[#635950] rounded-xl text-xs font-semibold">Đóng</button>
             </div>
