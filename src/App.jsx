@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
 
@@ -88,17 +88,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
-  Location: (props) => (
-    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
-  Note: (props) => (
-    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-    </svg>
-  ),
   X: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -108,11 +97,6 @@ const Icons = {
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
-  User: (props) => (
-    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
     </svg>
   )
 };
@@ -155,9 +139,6 @@ export default function App() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
 
-  const printableCardRef = useRef(null);
-  const exportCardRef = useRef(null);
-
   useEffect(() => {
     const unsubShows = onSnapshot(collection(db, "shows"), (snapshot) => {
       const items = snapshot.docs.map(doc => {
@@ -199,11 +180,6 @@ export default function App() {
       }
     };
     document.body.appendChild(script);
-
-    const html2canvasScript = document.createElement('script');
-    html2canvasScript.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-    html2canvasScript.async = true;
-    document.body.appendChild(html2canvasScript);
 
     return () => {
       unsubShows();
@@ -884,58 +860,6 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // Hàm xuất ảnh sử dụng node riêng biệt chuẩn xác 100% không bị lệch
-  const handleDownloadCardAsJPEG = async () => {
-    if (!exportCardRef.current) return;
-    if (!window.html2canvas) {
-      alert("Hệ thống đang tải thư viện, vui lòng thử lại sau 2 giây!");
-      return;
-    }
-
-    try {
-      const canvas = await window.html2canvas(exportCardRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: 420,
-      });
-
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
-        const clientOrShowName = confirmationModal.show?.clientName || 'PhieuXacNhan';
-        const fileName = `OurJune_${confirmationModal.type}_${clientOrShowName.replace(/\s+/g, '_')}.jpg`;
-        const file = new File([blob], fileName, { type: 'image/jpeg' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          try {
-            await navigator.share({
-              files: [file],
-              title: 'Phiếu Xác Nhận Our June Studio',
-              text: 'Gửi bạn phiếu xác nhận lịch chụp từ Our June Studio.'
-            });
-            return;
-          } catch (err) {
-            if (err.name !== 'AbortError') console.log("User cancelled share");
-          }
-        }
-
-        const imageURL = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = imageURL;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(imageURL);
-      }, 'image/jpeg', 0.95);
-
-    } catch (err) {
-      console.error("Lỗi tạo ảnh JPEG:", err);
-      alert("Không thể tạo ảnh, vui lòng thử lại.");
-    }
-  };
-
   const renderStatusBadge = (status) => {
     switch (status) {
       case 'Chưa cọc': return <span className="bg-[#f0eae1] text-[#7a6e62] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#dcd2c4]">Chưa cọc</span>;
@@ -947,9 +871,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
+      {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
+          {/* Hàng trên cùng: Logo và nút Google */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -968,6 +894,7 @@ export default function App() {
                 <button
                   onClick={handleSmartSyncWithGoogle}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
+                  title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
                 >
                   📱 Đồng bộ Google
                 </button>
@@ -975,7 +902,10 @@ export default function App() {
             </div>
           </div>
 
+          {/* Hàng điều hướng chia thành 2 tầng rõ rệt: Tầng 1 (Tab nội bộ) & Tầng 2 (4 Nút lối tắt) */}
           <div className="flex flex-col gap-1.5 bg-[#f2ede6] p-1.5 rounded-xl border border-[#e6dfd5]">
+            
+            {/* Tầng 1: Các tab chức năng chính */}
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
               <button onClick={() => setActiveTab('calendar')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
                 <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
@@ -995,18 +925,54 @@ export default function App() {
               </button>
             </div>
 
+            {/* Tầng 2: 4 Nút lối tắt nhanh đến các trang phụ */}
             <div className="grid grid-cols-4 gap-1 pt-1 border-t border-[#e6dfd5]">
-              <a href="https://beacons.ai/ourjune.studio" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">💰 Báo giá</a>
-              <a href="https://shotpik.com/dashboard" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">📂 Album</a>
-              <a href="https://www.ourjunestudio.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">🌐 Web chính</a>
-              <a href="https://ourjunestudio.shotpik.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] transition-all flex items-center justify-center text-[11px] font-semibold truncate">🎞️ Film</a>
+              <a
+                href="https://beacons.ai/ourjune.studio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở trang Báo giá"
+              >
+                <span>💰 Báo giá</span>
+              </a>
+              <a
+                href="https://shotpik.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Album trả khách"
+              >
+                <span>📂 Album</span>
+              </a>
+              <a
+                href="https://www.ourjunestudio.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Web chính thức"
+              >
+                <span>🌐 Web chính</span>
+              </a>
+              <a
+                href="https://ourjunestudio.shotpik.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Portfolio Ảnh Film"
+              >
+                <span>🎞️ Film</span>
+              </a>
             </div>
+
           </div>
 
         </div>
       </header>
 
+      {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
+        {/* Month / Year Bar & Quick Data Actions */}
         <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-[#635950] uppercase tracking-wider shrink-0">Thời gian:</span>
@@ -1033,6 +999,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* Financial Metrics Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
@@ -1067,6 +1034,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* TAB 1: GOOGLE CALENDAR VIEW */}
         {activeTab === 'calendar' && (
           <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 sm:p-4 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
@@ -1087,6 +1055,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* Google Calendar Grid */}
             <div className="w-full overflow-x-auto">
               <div className="grid grid-cols-7 border-b border-[#e6dfd5] text-center pb-2 min-w-[320px]">
                 {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (<div key={idx} className="text-xs font-semibold text-[#635950]">{dayName}</div>))}
@@ -1139,6 +1108,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 2: SHOW LIST VIEW */}
         {activeTab === 'list' && (
           <div className="space-y-3">
             <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-2 justify-between">
@@ -1234,6 +1204,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 3: YEARLY ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-lg space-y-3">
@@ -1338,6 +1309,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 4: STAFF MANAGEMENT */}
         {activeTab === 'staff' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-4">
@@ -1382,6 +1354,7 @@ export default function App() {
         )}
       </main>
 
+      {/* MODAL: STAFF FORM */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-sm overflow-hidden">
@@ -1419,6 +1392,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: STAFF YEARLY SCHEDULE */}
       {selectedStaffForModal && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
@@ -1487,6 +1461,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: SHOW FORM */}
       {isShowModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg my-6 overflow-hidden flex flex-col max-h-[90vh]">
@@ -1689,6 +1664,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: CALENDAR DAY DETAIL */}
       {selectedCalendarDay && !confirmationModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1817,6 +1793,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: EXPORT CONFIRMATION CARDS (Lớp nền che kín & làm mờ hoàn toàn các bảng phía sau) */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
@@ -1827,8 +1804,7 @@ export default function App() {
               <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="text-[#635950] hover:text-[#1c1815] p-1"><Icons.X className="w-5 h-5" /></button>
             </div>
 
-            {/* Vùng hiển thị trên màn hình giao diện web */}
-            <div ref={printableCardRef} className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
+            <div className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
               <div className="text-center border-b border-[#e6dfd5] pb-3 space-y-1">
                 <span className="font-bold text-sm tracking-tight text-[#1c1815]">OUR JUNE STUDIO</span>
                 <p className="text-[10px] text-[#635950] font-semibold uppercase tracking-widest">
@@ -1839,35 +1815,29 @@ export default function App() {
               {confirmationModal.type === 'client' && (
                 <div className="space-y-3 text-xs">
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                    <div className="flex justify-between items-center"><span className="text-[#635950]">Khách hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between items-center"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
-                    <div className="flex justify-between items-center"><span className="text-[#635950]">Gói dịch vụ:</span><span className="font-bold bg-[#ffffff] text-[#1c1815] border border-[#dcd2c4] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">Khách hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">Gói dịch vụ:</span><span className="font-bold bg-[#ffffff] text-[#1c1815] border border-[#dcd2c4] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
                   </div>
 
-                  <div className="space-y-2 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" /> Thời gian:</span>
+                  <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
+                    <div className="flex justify-between">
+                      <span className="text-[#635950]">📅 Thời gian:</span>
                       <strong className="text-[#1c1815]">
                         {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
                           ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
                           : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Clock className="w-3.5 h-3.5 text-[#85786c]" /> Giờ:</span>
-                      <strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Location className="w-3.5 h-3.5 text-[#85786c]" /> Địa điểm:</span>
-                      <strong className="text-[#1c1815] text-right truncate max-w-[200px]">{confirmationModal.show.location || 'Tại Studio Our June'}</strong>
-                    </div>
+                    <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815] text-right truncate max-w-[200px]">{confirmationModal.show.location || 'Tại Studio Our June'}</strong></div>
                   </div>
 
                   {!isNonCommercialPackage(confirmationModal.show.packageType) && (
                     <div className="bg-[#f7f4ef] p-3.5 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                      <div className="flex justify-between items-center text-[#4a4036]"><span>Giá hợp đồng:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
-                      <div className="flex justify-between items-center text-[#4a4036]"><span>Đã đặt cọc:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
-                      <div className="flex justify-between items-center text-rose-700 font-bold border-t border-[#e6dfd5] pt-1.5 text-sm">
+                      <div className="flex justify-between text-[#4a4036]"><span>Giá hợp đồng:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
+                      <div className="flex justify-between text-[#4a4036]"><span>Đã đặt cọc:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
+                      <div className="flex justify-between text-rose-700 font-bold border-t border-[#e6dfd5] pt-1.5 text-sm">
                         <span>Còn lại cần thanh toán:</span>
                         <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
                       </div>
@@ -1875,9 +1845,7 @@ export default function App() {
                   )}
 
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1">
-                    <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider flex items-center gap-1.5">
-                      <Icons.Note className="w-3.5 h-3.5 text-[#85786c]" /> GHI CHÚ:
-                    </span>
+                    <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">📝 Ghi chú:</span>
                     <p className="text-[#1c1815] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
                   </div>
                 </div>
@@ -1886,35 +1854,29 @@ export default function App() {
               {confirmationModal.type === 'staff' && (
                 <div className="space-y-3 text-xs">
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                    <div className="flex justify-between items-center"><span className="text-[#635950]">Tên Show / Gói:</span><span className="font-bold text-[#1c1815]">{confirmationModal.show.packageType}</span></div>
-                    <div className="flex justify-between items-center"><span className="text-[#635950]">Tên Khách Hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between items-center"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">Tên Show / Gói:</span><span className="font-bold text-[#1c1815]">{confirmationModal.show.packageType}</span></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">Tên Khách Hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
                   </div>
 
-                  <div className="space-y-2 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" /> Thời gian:</span>
+                  <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
+                    <div className="flex justify-between">
+                      <span className="text-[#635950]">📅 Thời gian:</span>
                       <strong className="text-[#1c1815]">
                         {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
                           ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
                           : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Clock className="w-3.5 h-3.5 text-[#85786c]" /> Giờ làm việc:</span>
-                      <strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[#635950] flex items-center gap-1.5"><Icons.Location className="w-3.5 h-3.5 text-[#85786c]" /> Địa điểm:</span>
-                      <strong className="text-[#1c1815]">{confirmationModal.show.location || 'Tại Studio'}</strong>
-                    </div>
+                    <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ làm việc:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815]">{confirmationModal.show.location || 'Tại Studio'}</strong></div>
                   </div>
 
                   <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
                     <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Phân công Nhân sự Ekip:</span>
                     {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
-                      <div key={c.id || i} className="flex justify-between items-center border-b border-[#e6dfd5] pb-1 last:border-none">
-                        <span className="text-[#635950] flex items-center gap-1.5"><Icons.User className="w-3.5 h-3.5 text-[#85786c]" /> {c.role}:</span><strong className="text-[#1c1815]">{c.name}</strong>
+                      <div key={c.id || i} className="flex justify-between border-b border-[#e6dfd5] pb-1 last:border-none">
+                        <span className="text-[#635950]">👤 {c.role}:</span><strong className="text-[#1c1815]">{c.name}</strong>
                       </div>
                     ))}
                   </div>
@@ -1927,121 +1889,23 @@ export default function App() {
               )}
             </div>
 
-            {/* VÙNG ẨN (OFF-SCREEN) DÀNH RIÊNG ĐỂ XUẤT ẢNH JPEG - ĐÃ FIX TUYỆT ĐỐI GIAO DIỆN TEXT/BLOCK */}
-            <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '390px' }}>
-              <div ref={exportCardRef} style={{ padding: '24px', background: '#ffffff', color: '#1c1815', fontFamily: 'sans-serif', boxSizing: 'border-box' }}>
-                <div style={{ textAlign: 'center', borderBottom: '1px solid #e6dfd5', paddingBottom: '12px', marginBottom: '16px' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '15px', color: '#1c1815', letterSpacing: '-0.5px' }}>OUR JUNE STUDIO</div>
-                  <div style={{ fontSize: '10px', color: '#635950', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px', marginTop: '4px' }}>
-                    {confirmationModal.type === 'client' ? 'XÁC NHẬN THÔNG TIN LỊCH HẸN & DỊCH VỤ' : 'THÔNG TIN PHÂN CÔNG LỊCH EKIP CHỤP'}
-                  </div>
-                </div>
-
-                {confirmationModal.type === 'client' && (
-                  <div style={{ fontSize: '12px' }}>
-                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', marginBottom: '12px' }}>
-                      <div style={{ marginBottom: '8px' }}><span style={{ color: '#635950' }}>Khách hàng: </span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.clientName}</strong></div>
-                      <div style={{ marginBottom: '8px' }}><span style={{ color: '#635950' }}>Số điện thoại: </span><strong style={{ color: '#4a4036' }}>{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
-                      <div>
-                        <span style={{ color: '#635950' }}>Gói dịch vụ: </span>
-                        <span style={{ display: 'inline-block', fontWeight: 'bold', background: '#ffffff', color: '#1c1815', border: '1px solid #dcd2c4', padding: '2px 8px', borderRadius: '4px', fontSize: '10px' }}>
-                          {confirmationModal.show.packageType}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', marginBottom: '12px' }}>
-                      <div style={{ marginBottom: '8px' }}>
-                        <span style={{ color: '#635950' }}>Thời gian: </span>
-                        <strong style={{ color: '#1c1815' }}>
-                          {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
-                            ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} đến ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
-                            : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
-                        </strong>
-                      </div>
-                      <div style={{ marginBottom: '8px' }}><span style={{ color: '#635950' }}>Giờ: </span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
-                      <div><span style={{ color: '#635950' }}>Địa điểm: </span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.location || 'Tại Studio Our June'}</strong></div>
-                    </div>
-
-                    {!isNonCommercialPackage(confirmationModal.show.packageType) && (
-                      <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', marginBottom: '12px' }}>
-                        <div style={{ marginBottom: '8px', color: '#4a4036' }}><span>Giá hợp đồng: </span><strong style={{ color: '#1c1815' }}>{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
-                        <div style={{ marginBottom: '8px', color: '#4a4036' }}><span>Đã đặt cọc: </span><strong style={{ color: '#1c1815' }}>{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
-                        <div style={{ color: '#a51d24', fontWeight: 'bold', borderTop: '1px solid #e6dfd5', paddingTop: '8px', fontSize: '13px' }}>
-                          <span>Còn lại cần thanh toán: </span>
-                          <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#635950', textTransform: 'uppercase', marginBottom: '4px' }}>GHI CHÚ:</div>
-                      <p style={{ color: '#1c1815', lineHeight: '1.4', whiteSpace: 'pre-wrap', margin: 0 }}>{confirmationModal.show.notes || 'Không có ghi chú'}</p>
-                    </div>
-                  </div>
-                )}
-
-                {confirmationModal.type === 'staff' && (
-                  <div style={{ fontSize: '12px' }}>
-                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', marginBottom: '12px' }}>
-                      <div style={{ marginBottom: '8px' }}><span style={{ color: '#635950' }}>Tên Show / Gói: </span><span style={{ fontWeight: 'bold', color: '#1c1815' }}>{confirmationModal.show.packageType}</span></div>
-                      <div style={{ marginBottom: '8px' }}><span style={{ color: '#635950' }}>Tên Khách Hàng: </span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.clientName}</strong></div>
-                      <div><span style={{ color: '#635950' }}>SĐT Khách: </span><strong style={{ color: '#4a4036' }}>{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
-                    </div>
-
-                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', marginBottom: '12px' }}>
-                      <div style={{ marginBottom: '8px' }}>
-                        <span style={{ color: '#635950' }}>Thời gian: </span>
-                        <strong style={{ color: '#1c1815' }}>
-                          {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
-                            ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} đến ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
-                            : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
-                        </strong>
-                      </div>
-                      <div style={{ marginBottom: '8px' }}><span style={{ color: '#635950' }}>Giờ làm việc: </span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
-                      <div><span style={{ color: '#635950' }}>Địa điểm: </span><strong style={{ color: '#1c1815' }}>{confirmationModal.show.location || 'Tại Studio'}</strong></div>
-                    </div>
-
-                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5', marginBottom: '12px' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#635950', textTransform: 'uppercase', marginBottom: '6px' }}>Phân công Nhân sự Ekip:</div>
-                      {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
-                        <div key={c.id || i} style={{ marginBottom: '4px', borderBottom: '1px solid #e6dfd5', paddingBottom: '4px' }}>
-                          <span style={{ color: '#635950' }}>{c.role}: </span><strong style={{ color: '#1c1815' }}>{c.name}</strong>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={{ background: '#f7f4ef', padding: '12px', borderRadius: '10px', border: '1px solid #e6dfd5' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '11px', color: '#635950', textTransform: 'uppercase', marginBottom: '4px' }}>Ghi chú Ekip:</div>
-                      <p style={{ color: '#1c1815', lineHeight: '1.4', whiteSpace: 'pre-wrap', margin: 0 }}>{confirmationModal.show.notes || 'Không có'}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex flex-col sm:flex-row gap-2">
+            <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex justify-between gap-2">
               <button onClick={() => {
                 const show = confirmationModal.show;
                 const dateStrText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
                 let text = '';
                 if (confirmationModal.type === 'client') {
-                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
+                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH\n- Khách hàng: ${show.clientName}\n- Gói: ${show.packageType}\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}\n- Địa điểm: ${show.location || 'Studio'}`;
                 } else {
-                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}`;
+                  text = `[OUR JUNE STUDIO] LỊCH CHỤP EKIP\n- Show: ${show.packageType} (${show.clientName})\n- Thời gian: ${dateStrText}\n- Giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}`;
                 }
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                   navigator.clipboard.writeText(text).then(() => alert('Đã sao chép tin nhắn!'));
                 }
-              }} className="flex-1 bg-[#2c2621] text-[#f9f6f0] px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#4a4036] flex items-center justify-center gap-1">
+              }} className="flex-1 bg-[#2c2621] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#4a4036]">
                 📋 Sao Chép Tin Nhắn
               </button>
-
-              <button onClick={handleDownloadCardAsJPEG} className="flex-1 bg-[#137333] text-[#ffffff] px-3 py-2 rounded-xl text-xs font-semibold hover:bg-[#0f5c28] flex items-center justify-center gap-1 shadow-xs">
-                📥 Tải Phiếu Ảnh (JPEG)
-              </button>
-
-              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-3 py-2 border border-[#e6dfd5] text-[#635950] rounded-xl text-xs font-semibold">Đóng</button>
+              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-4 py-1.5 border border-[#e6dfd5] text-[#635950] rounded-xl text-xs font-semibold">Đóng</button>
             </div>
           </div>
         </div>
