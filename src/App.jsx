@@ -1665,7 +1665,7 @@ export default function App() {
       )}
 
       {/* MODAL: CALENDAR DAY DETAIL */}
-      {selectedCalendarDay && (
+      {selectedCalendarDay && !confirmationModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#e6dfd5] pb-3">
@@ -1793,9 +1793,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EXPORT CONFIRMATION CARDS */}
+      {/* MODAL: EXPORT CONFIRMATION CARDS (Lớp nền che kín & làm mờ hoàn toàn các bảng phía sau) */}
       {confirmationModal.isOpen && confirmationModal.show && (
-        <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
+        <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
             <div className="p-3.5 border-b border-[#e6dfd5] flex justify-between items-center bg-[#ffffff]">
               <span className="font-bold text-xs uppercase tracking-wider text-[#635950]">
