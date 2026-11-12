@@ -909,7 +909,7 @@ export default function App() {
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
               <button onClick={() => setActiveTab('calendar')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
                 <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
-                <span>Calendar</span>
+                <span>Lịch</span>
               </button>
               <button onClick={() => setActiveTab('list')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'list' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
                 <Icons.Camera className="w-3.5 h-3.5 text-[#85786c]" />
