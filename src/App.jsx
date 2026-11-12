@@ -183,7 +183,6 @@ export default function App() {
     };
     document.body.appendChild(script);
 
-    // Tải html2canvas để render ảnh JPEG phiếu xác nhận
     const html2canvasScript = document.createElement('script');
     html2canvasScript.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
     html2canvasScript.async = true;
@@ -868,32 +867,55 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // Hàm tải phiếu xác nhận thành file JPEG chất lượng cao
+  // Hàm tải ảnh JPEG tích hợp Web Share API cho điện thoại để lưu thẳng vào Album ảnh
   const handleDownloadCardAsJPEG = async () => {
     if (!printableCardRef.current) return;
     if (!window.html2canvas) {
-      alert("Hệ thống đang tải thư viện chụp ảnh, vui lòng thử lại sau 2 giây!");
+      alert("Hệ thống đang tải thư viện, vui lòng thử lại sau 2 giây!");
       return;
     }
 
     try {
       const canvas = await window.html2canvas(printableCardRef.current, {
-        scale: 2, // Tăng độ sắc nét Retina
+        scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
       });
 
-      const imageURL = canvas.toDataURL('image/jpeg', 0.95);
-      const link = document.createElement('a');
-      link.href = imageURL;
-      const clientOrShowName = confirmationModal.show?.clientName || 'PhieuXacNhan';
-      link.download = `OurJune_${confirmationModal.type}_${clientOrShowName.replace(/\s+/g, '_')}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const clientOrShowName = confirmationModal.show?.clientName || 'PhieuXacNhan';
+        const fileName = `OurJune_${confirmationModal.type}_${clientOrShowName.replace(/\s+/g, '_')}.jpg`;
+        const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+        // Nếu trình duyệt di động hỗ trợ Web Share API (chia sẻ tệp trực tiếp lên Album/Zalo/Messenger)
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Phiếu Xác Nhận Our June Studio',
+              text: 'Gửi bạn phiếu xác nhận lịch chụp từ Our June Studio.'
+            });
+            return;
+          } catch (err) {
+            if (err.name !== 'AbortError') console.log("User cancelled share");
+          }
+        }
+
+        // Fallback cho PC hoặc trình duyệt không hỗ trợ Web Share: Tải xuống file thông thường
+        const imageURL = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = imageURL;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(imageURL);
+      }, 'image/jpeg', 0.95);
+
     } catch (err) {
-      console.error("Lỗi tải ảnh JPEG:", err);
-      alert("Không thể tải ảnh, vui lòng thử lại.");
+      console.error("Lỗi tạo ảnh JPEG:", err);
+      alert("Không thể tạo ảnh, vui lòng thử lại.");
     }
   };
 
@@ -1789,7 +1811,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: CONFIRMATION CARDS WITH DOWNLOAD JPEG BUTTON */}
+      {/* MODAL: CONFIRMATION CARDS WITH MOBILE WEB SHARE API */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
@@ -1800,7 +1822,6 @@ export default function App() {
               <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="text-[#635950] hover:text-[#1c1815] p-1"><Icons.X className="w-5 h-5" /></button>
             </div>
 
-            {/* Phần nội dung phiếu được bọc ref để chụp ảnh JPEG chính xác tuyệt đối */}
             <div ref={printableCardRef} className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
               <div className="text-center border-b border-[#e6dfd5] pb-3 space-y-1">
                 <span className="font-bold text-sm tracking-tight text-[#1c1815]">OUR JUNE STUDIO</span>
