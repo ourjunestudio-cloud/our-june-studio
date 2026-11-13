@@ -181,8 +181,7 @@ export default function App() {
         const expiresAt = localStorage.getItem('google_token_expires_at');
         if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
           setIsGoogleConnected(true);
-        } else if (savedToken) {
-          // Token đã cũ, yêu cầu làm mới ngầm hoặc đánh dấu hết hạn
+        } else {
           setIsGoogleConnected(false);
         }
       }
@@ -201,22 +200,25 @@ export default function App() {
     }
   };
 
-  // Hàm tự động làm mới hoặc kiểm tra token trước khi gọi Google API
-  const getValidAccessToken = async () => {
-    const savedToken = localStorage.getItem('google_access_token');
-    const expiresAt = localStorage.getItem('google_token_expires_at');
-    
-    if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
-      return savedToken;
-    }
-    
-    // Nếu token hết hạn, tự động gọi lại tokenClient ở chế độ không hiện popup (nếu trình duyệt cho phép) hoặc yêu cầu bấm kết nối lại
+  // CƠ CHẾ KIỂM TRA VÀ YÊU CẦU XÁC THỰC RÕ RÀNG TRÊN DI ĐỘNG
+  // Nếu token hết hạn, bắt buộc phải bật popup yêu cầu người dùng bấm đồng ý để cấp mới, tránh lỗi ngầm trên mobile
+  const ensureValidAccessToken = () => {
     return new Promise((resolve) => {
+      const savedToken = localStorage.getItem('google_access_token');
+      const expiresAt = localStorage.getItem('google_token_expires_at');
+      
+      if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
+        resolve(savedToken);
+        return;
+      }
+
       if (!tokenClient) {
+        setIsGoogleConnected(false);
         resolve(null);
         return;
       }
-      // Cập nhật callback tạm thời cho việc làm mới token ngầm
+
+      // Cập nhật callback để nhận token mới qua tương tác trực tiếp
       tokenClient.callback = (response) => {
         if (response && response.access_token) {
           const newExpiresAt = new Date().getTime() + (response.expires_in || 3600) * 1000;
@@ -229,14 +231,16 @@ export default function App() {
           resolve(null);
         }
       };
-      tokenClient.requestAccessToken({ prompt: '' });
+
+      // Ép hiện popup yêu cầu xác thực lại nếu phiên làm việc trên di động đã hết hạn
+      tokenClient.requestAccessToken({ prompt: 'consent' });
     });
   };
 
   const syncShowToGoogleCalendar = async (showData) => {
-    const accessToken = await getValidAccessToken();
+    const accessToken = await ensureValidAccessToken();
     if (!accessToken) {
-      setIsGoogleConnected(false);
+      alert("⚠️ Phiên kết nối Google đã hết hạn. Vui lòng bấm nút 'Kết nối Google' ở góc trên để cấp lại quyền trước khi đồng bộ lịch.");
       return;
     }
 
@@ -261,7 +265,7 @@ export default function App() {
     const expectedSummary = `[${showData.packageType}] ${showData.clientName}`;
 
     try {
-      // KIỂM TRA TRÙNG LẶP: Lấy danh sách sự kiện trên Google Calendar xem đã có sự kiện này chưa
+      // KIỂM TRA TRÙNG LẶP TRƯỚC KHI TẠO
       const checkRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
@@ -273,8 +277,7 @@ export default function App() {
       );
 
       if (alreadyExists) {
-        // Đã có rồi thì không tạo mới nữa để tránh bị lặp
-        return;
+        return; // Đã có trên Google Calendar thì bỏ qua, không tạo trùng
       }
 
       const eventDetails = {
@@ -302,7 +305,7 @@ export default function App() {
   };
 
   const deleteShowFromGoogleCalendar = async (showData) => {
-    const accessToken = await getValidAccessToken();
+    const accessToken = await ensureValidAccessToken();
     if (!accessToken) return;
 
     try {
@@ -329,7 +332,7 @@ export default function App() {
   };
 
   const handleSmartSyncWithGoogle = async () => {
-    const accessToken = await getValidAccessToken();
+    const accessToken = await ensureValidAccessToken();
     if (!accessToken) {
       alert("Vui lòng kết nối Google trước!");
       return;
@@ -1854,7 +1857,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EXPORT CONFIRMATION CARDS (Lớp nền che kín & làm mờ hoàn toàn các bảng phía sau) */}
+      {/* MODAL: EXPORT CONFIRMATION CARDS */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
