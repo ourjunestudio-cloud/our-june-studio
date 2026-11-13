@@ -200,13 +200,13 @@ export default function App() {
     }
   };
 
-  // CƠ CHẾ KIỂM TRA VÀ YÊU CẦU XÁC THỰC RÕ RÀNG TRÊN DI ĐỘNG
-  // Nếu token hết hạn, bắt buộc phải bật popup yêu cầu người dùng bấm đồng ý để cấp mới, tránh lỗi ngầm trên mobile
-  const ensureValidAccessToken = () => {
+  // CƠ CHẾ KIỂM TRA VÀ YÊU CẦU XÁC THỰC TRỰC TIẾP TRƯỚC KHI ĐỒNG BỘ
+  const getVerifiedAccessToken = () => {
     return new Promise((resolve) => {
       const savedToken = localStorage.getItem('google_access_token');
       const expiresAt = localStorage.getItem('google_token_expires_at');
       
+      // Nếu token còn hạn, trả về dùng luôn
       if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
         resolve(savedToken);
         return;
@@ -218,7 +218,7 @@ export default function App() {
         return;
       }
 
-      // Cập nhật callback để nhận token mới qua tương tác trực tiếp
+      // Nếu hết hạn, ép buộc bật bảng đăng nhập/cấp quyền ngay lập tức khi người dùng thao tác
       tokenClient.callback = (response) => {
         if (response && response.access_token) {
           const newExpiresAt = new Date().getTime() + (response.expires_in || 3600) * 1000;
@@ -232,16 +232,15 @@ export default function App() {
         }
       };
 
-      // Ép hiện popup yêu cầu xác thực lại nếu phiên làm việc trên di động đã hết hạn
       tokenClient.requestAccessToken({ prompt: 'consent' });
     });
   };
 
   const syncShowToGoogleCalendar = async (showData) => {
-    const accessToken = await ensureValidAccessToken();
+    const accessToken = await getVerifiedAccessToken();
     if (!accessToken) {
-      alert("⚠️ Phiên kết nối Google đã hết hạn. Vui lòng bấm nút 'Kết nối Google' ở góc trên để cấp lại quyền trước khi đồng bộ lịch.");
-      return;
+      alert("⚠️ Cần cấp quyền Google để đồng bộ lịch mới tạo lên Google Calendar!");
+      return false;
     }
 
     const startDate = showData.date;
@@ -265,7 +264,6 @@ export default function App() {
     const expectedSummary = `[${showData.packageType}] ${showData.clientName}`;
 
     try {
-      // KIỂM TRA TRÙNG LẶP TRƯỚC KHI TẠO
       const checkRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
@@ -277,7 +275,7 @@ export default function App() {
       );
 
       if (alreadyExists) {
-        return; // Đã có trên Google Calendar thì bỏ qua, không tạo trùng
+        return true; 
       }
 
       const eventDetails = {
@@ -291,7 +289,7 @@ export default function App() {
         colorId: colorId,
       };
 
-      await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      const createRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -299,13 +297,16 @@ export default function App() {
         },
         body: JSON.stringify(eventDetails),
       });
+
+      return createRes.ok;
     } catch (err) {
       console.error("Lỗi đồng bộ Google Calendar:", err);
+      return false;
     }
   };
 
   const deleteShowFromGoogleCalendar = async (showData) => {
-    const accessToken = await ensureValidAccessToken();
+    const accessToken = await getVerifiedAccessToken();
     if (!accessToken) return;
 
     try {
@@ -332,7 +333,7 @@ export default function App() {
   };
 
   const handleSmartSyncWithGoogle = async () => {
-    const accessToken = await ensureValidAccessToken();
+    const accessToken = await getVerifiedAccessToken();
     if (!accessToken) {
       alert("Vui lòng kết nối Google trước!");
       return;
@@ -799,6 +800,14 @@ export default function App() {
     };
 
     try {
+      // BƯỚC QUAN TRỌNG: Kiểm tra và xác thực token Google NGAY TRƯỚC KHI LƯU DB
+      // Nếu token hết hạn, bắt buộc bật bảng đăng nhập để người dùng cấp lại quyền ngay lập tức.
+      const accessToken = await getVerifiedAccessToken();
+      if (!accessToken) {
+        alert("⚠️ Phiên kết nối Google đã hết hạn. Vui lòng bấm đồng ý đăng nhập Google để hoàn tất việc lưu và đồng bộ lịch!");
+        return;
+      }
+
       let updatedShows = [...shows];
       if (editingShow) {
         await deleteShowFromGoogleCalendar(editingShow);
@@ -810,7 +819,11 @@ export default function App() {
         updatedShows.push({ ...payload, id: docRef.id });
       }
       
-      await syncShowToGoogleCalendar(payload);
+      // Đồng bộ trực tiếp ngay sau khi có token đảm bảo 100% không bị mất lịch
+      const syncSuccess = await syncShowToGoogleCalendar(payload);
+      if (!syncSuccess) {
+        alert("⚠️ Lịch đã được lưu vào web nhưng chưa thể đẩy lên Google Calendar. Vui lòng bấm 'Đồng bộ Google' ở góc trên để đẩy lại.");
+      }
 
       setIsShowModalOpen(false);
 
