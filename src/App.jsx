@@ -139,7 +139,6 @@ export default function App() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
 
-  // HÀM KIỂM TRA TRẠNG THÁI TOKEN THỜI GIAN THỰC
   const checkTokenStatus = () => {
     const savedToken = localStorage.getItem('google_access_token');
     const expiresAt = localStorage.getItem('google_token_expires_at');
@@ -192,7 +191,6 @@ export default function App() {
     };
     document.body.appendChild(script);
 
-    // Kiểm tra định kỳ mỗi khi người dùng quay lại tab trình duyệt trên điện thoại
     window.addEventListener('focus', checkTokenStatus);
 
     return () => {
@@ -202,9 +200,10 @@ export default function App() {
     };
   }, []);
 
+  // TỐI ƯU 1 CHẠM: Bỏ prompt 'consent' thừa thãi, hệ thống sẽ tự động xác thực mượt mà
   const handleConnectGoogle = () => {
     if (tokenClient) {
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+      tokenClient.requestAccessToken({ prompt: '' });
     }
   };
 
@@ -239,7 +238,7 @@ export default function App() {
         }
       };
 
-      tokenClient.requestAccessToken({ prompt: 'consent' });
+      tokenClient.requestAccessToken({ prompt: '' });
     });
   };
 
@@ -956,7 +955,7 @@ export default function App() {
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
-          {/* Hàng trên cùng: Logo và nút Google trạng thái chủ động Xanh/Xám */}
+          {/* Hàng trên cùng: Logo và nút Google 1 chạm */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -972,7 +971,7 @@ export default function App() {
                     ? 'bg-[#e6f4ea] text-[#137333] border-[#ceead6]' 
                     : 'bg-[#fdf2f2] text-[#991b1b] border-[#fecaca] animate-pulse'
                 }`}
-                title={isGoogleConnected ? "Kết nối Google đang hoạt động tốt" : "Phiên đăng nhập đã hết hạn, bấm vào đây để kết nối lại ngay"}
+                title={isGoogleConnected ? "Kết nối Google đang hoạt động tốt" : "Phiên đăng nhập đã hết hạn, bấm 1 chạm để kết nối lại ngay"}
               >
                 {isGoogleConnected ? '✓ Đã kết nối Google' : '⚠️ Cần kết nối lại Google'}
               </button>
