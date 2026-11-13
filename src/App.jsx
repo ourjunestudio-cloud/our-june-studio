@@ -139,6 +139,17 @@ export default function App() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
 
+  // HÀM KIỂM TRA TRẠNG THÁI TOKEN THỜI GIAN THỰC
+  const checkTokenStatus = () => {
+    const savedToken = localStorage.getItem('google_access_token');
+    const expiresAt = localStorage.getItem('google_token_expires_at');
+    if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
+      setIsGoogleConnected(true);
+    } else {
+      setIsGoogleConnected(false);
+    }
+  };
+
   useEffect(() => {
     const unsubShows = onSnapshot(collection(db, "shows"), (snapshot) => {
       const items = snapshot.docs.map(doc => {
@@ -176,21 +187,18 @@ export default function App() {
           },
         });
         setTokenClient(client);
-        
-        const savedToken = localStorage.getItem('google_access_token');
-        const expiresAt = localStorage.getItem('google_token_expires_at');
-        if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
-          setIsGoogleConnected(true);
-        } else {
-          setIsGoogleConnected(false);
-        }
+        checkTokenStatus();
       }
     };
     document.body.appendChild(script);
 
+    // Kiểm tra định kỳ mỗi khi người dùng quay lại tab trình duyệt trên điện thoại
+    window.addEventListener('focus', checkTokenStatus);
+
     return () => {
       unsubShows();
       unsubStaff();
+      window.removeEventListener('focus', checkTokenStatus);
     };
   }, []);
 
@@ -200,25 +208,24 @@ export default function App() {
     }
   };
 
-  // CƠ CHẾ KIỂM TRA VÀ YÊU CẦU XÁC THỰC TRỰC TIẾP TRƯỚC KHI ĐỒNG BỘ
   const getVerifiedAccessToken = () => {
     return new Promise((resolve) => {
       const savedToken = localStorage.getItem('google_access_token');
       const expiresAt = localStorage.getItem('google_token_expires_at');
       
-      // Nếu token còn hạn, trả về dùng luôn
       if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
+        setIsGoogleConnected(true);
         resolve(savedToken);
         return;
       }
 
+      setIsGoogleConnected(false);
+
       if (!tokenClient) {
-        setIsGoogleConnected(false);
         resolve(null);
         return;
       }
 
-      // Nếu hết hạn, ép buộc bật bảng đăng nhập/cấp quyền ngay lập tức khi người dùng thao tác
       tokenClient.callback = (response) => {
         if (response && response.access_token) {
           const newExpiresAt = new Date().getTime() + (response.expires_in || 3600) * 1000;
@@ -800,8 +807,6 @@ export default function App() {
     };
 
     try {
-      // BƯỚC QUAN TRỌNG: Kiểm tra và xác thực token Google NGAY TRƯỚC KHI LƯU DB
-      // Nếu token hết hạn, bắt buộc bật bảng đăng nhập để người dùng cấp lại quyền ngay lập tức.
       const accessToken = await getVerifiedAccessToken();
       if (!accessToken) {
         alert("⚠️ Phiên kết nối Google đã hết hạn. Vui lòng bấm đồng ý đăng nhập Google để hoàn tất việc lưu và đồng bộ lịch!");
@@ -819,10 +824,9 @@ export default function App() {
         updatedShows.push({ ...payload, id: docRef.id });
       }
       
-      // Đồng bộ trực tiếp ngay sau khi có token đảm bảo 100% không bị mất lịch
       const syncSuccess = await syncShowToGoogleCalendar(payload);
       if (!syncSuccess) {
-        alert("⚠️ Lịch đã được lưu vào web nhưng chưa thể đẩy lên Google Calendar. Vui lòng bấm 'Đồng bộ Google' ở góc trên để đẩy lại.");
+        alert("⚠️ Lịch đã được lưu vào web nhưng chưa thể đẩy lên Google Calendar. Vui lòng kiểm tra lại kết nối.");
       }
 
       setIsShowModalOpen(false);
@@ -952,7 +956,7 @@ export default function App() {
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
-          {/* Hàng trên cùng: Logo và nút Google */}
+          {/* Hàng trên cùng: Logo và nút Google trạng thái chủ động Xanh/Xám */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -963,9 +967,14 @@ export default function App() {
             <div className="flex items-center gap-1.5">
               <button
                 onClick={handleConnectGoogle}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition ${isGoogleConnected ? 'bg-[#e6f4ea] text-[#137333] border-[#ceead6]' : 'bg-[#f0eae1] text-[#2c2621] border-[#dcd2c4]'}`}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1 ${
+                  isGoogleConnected 
+                    ? 'bg-[#e6f4ea] text-[#137333] border-[#ceead6]' 
+                    : 'bg-[#fdf2f2] text-[#991b1b] border-[#fecaca] animate-pulse'
+                }`}
+                title={isGoogleConnected ? "Kết nối Google đang hoạt động tốt" : "Phiên đăng nhập đã hết hạn, bấm vào đây để kết nối lại ngay"}
               >
-                {isGoogleConnected ? '✓ Đã kết nối Google' : '🔗 Kết nối Google'}
+                {isGoogleConnected ? '✓ Đã kết nối Google' : '⚠️ Cần kết nối lại Google'}
               </button>
               {isGoogleConnected && (
                 <button
@@ -2007,7 +2016,7 @@ export default function App() {
                          `- Gói / Show: ${show.packageType}\n` +
                          `- Khách hàng: ${show.clientName} (SĐT: ${show.clientPhone || 'Chưa có'})\n` +
                          `- Ngày: ${dateStrText}\n` +
-                         `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
+                         `- Khung giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}\n` +
                          `- Địa điểm: ${show.location || 'Tại Studio'}\n` +
                          `- Ekip phụ trách:\n${crewText || 'Chưa phân công'}\n` +
                          `- Ghi chú: ${show.notes || 'Không có'}\n` +
