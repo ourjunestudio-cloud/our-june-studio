@@ -98,6 +98,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
+  ),
+  Phone: (props) => (
+    <svg className={props.className || "w-4 h-4"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+    </svg>
   )
 };
 
@@ -182,7 +187,6 @@ export default function App() {
         if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
           setIsGoogleConnected(true);
         } else if (savedToken) {
-          // Token đã cũ, yêu cầu làm mới ngầm hoặc đánh dấu hết hạn
           setIsGoogleConnected(false);
         }
       }
@@ -201,7 +205,6 @@ export default function App() {
     }
   };
 
-  // Hàm tự động làm mới hoặc kiểm tra token trước khi gọi Google API
   const getValidAccessToken = async () => {
     const savedToken = localStorage.getItem('google_access_token');
     const expiresAt = localStorage.getItem('google_token_expires_at');
@@ -210,13 +213,11 @@ export default function App() {
       return savedToken;
     }
     
-    // Nếu token hết hạn, tự động gọi lại tokenClient ở chế độ không hiện popup (nếu trình duyệt cho phép) hoặc yêu cầu bấm kết nối lại
     return new Promise((resolve) => {
       if (!tokenClient) {
         resolve(null);
         return;
       }
-      // Cập nhật callback tạm thời cho việc làm mới token ngầm
       tokenClient.callback = (response) => {
         if (response && response.access_token) {
           const newExpiresAt = new Date().getTime() + (response.expires_in || 3600) * 1000;
@@ -261,7 +262,6 @@ export default function App() {
     const expectedSummary = `[${showData.packageType}] ${showData.clientName}`;
 
     try {
-      // KIỂM TRA TRÙNG LẶP: Lấy danh sách sự kiện trên Google Calendar xem đã có sự kiện này chưa
       const checkRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
@@ -273,7 +273,6 @@ export default function App() {
       );
 
       if (alreadyExists) {
-        // Đã có rồi thì không tạo mới nữa để tránh bị lặp
         return;
       }
 
@@ -1221,7 +1220,7 @@ export default function App() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                         <div>
                           <h3 className="font-bold text-[#1c1815] text-base">{show.clientName}</h3>
-                          <p className="text-[#635950] font-medium mt-0.5">SĐT: {show.clientPhone || 'Chưa có'}</p>
+                          <p className="text-[#635950] font-medium mt-0.5">SĐT: {show.clientName && show.clientPhone ? <a href={`tel:${show.clientPhone}`} className="text-[#137333] hover:underline font-semibold">{show.clientPhone}</a> : (show.clientPhone || 'Chưa có')}</p>
                           <p className="text-[#4a4036] font-medium mt-1">📍 {show.location || 'Chưa cập nhật'}</p>
                         </div>
 
@@ -1387,15 +1386,24 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {staffList.map((st) => (
                   <div key={st.id} className="bg-[#f7f4ef]/50 p-3 rounded-lg border border-[#e6dfd5] flex justify-between items-center transition group hover:border-[#b5a799]">
-                    <div onClick={() => setSelectedStaffForModal(st)} className="cursor-pointer flex-1 pr-2">
-                      <h4 className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5">
-                        <span>👤</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
-                      </h4>
-                      <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
-                      <p className="text-[11px] text-[#635950] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
+                    <div className="flex-1 pr-2">
+                      <div onClick={() => setSelectedStaffForModal(st)} className="cursor-pointer">
+                        <h4 className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5">
+                          <span>👤</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
+                        </h4>
+                        <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between">
+                        <p className="text-[11px] text-[#635950]">SĐT: {st.phone ? <a href={`tel:${st.phone}`} className="text-[#137333] hover:underline font-bold">{st.phone}</a> : 'Chưa có'}</p>
+                        {st.phone && (
+                          <a href={`tel:${st.phone}`} className="bg-[#e6f4ea] text-[#137333] border border-[#ceead6] px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 hover:bg-[#ceead6] transition">
+                            <Icons.Phone className="w-3 h-3" /> Gọi điện
+                          </a>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 self-start">
                       <button onClick={() => handleOpenStaffModal(st)} className="p-1.5 hover:bg-[#ffffff] rounded-lg text-[#635950] border border-[#dcd2c4]" title="Sửa thông tin"><Icons.Edit className="w-4 h-4" /></button>
                       <button onClick={() => handleDeleteStaff(st.id)} className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-700 border border-rose-200" title="Xóa"><Icons.Trash2 className="w-4 h-4" /></button>
                     </div>
@@ -1764,7 +1772,7 @@ export default function App() {
                             <h4 className="font-bold text-sm text-[#1c1815]">{show.clientName}</h4>
                             <span className="text-[10px] font-bold bg-[#ffffff] border border-[#dcd2c4] text-[#1c1815] px-2 py-0.5 rounded-md">{show.packageType}</span>
                           </div>
-                          {!isOff && <p className="text-xs text-[#635950] font-medium mt-0.5">📞 SĐT: {show.clientPhone || 'Chưa có'}</p>}
+                          {!isOff && <p className="text-xs text-[#635950] font-medium mt-0.5">📞 SĐT: {show.clientPhone ? <a href={`tel:${show.clientPhone}`} className="text-[#137333] hover:underline font-bold">{show.clientPhone}</a> : 'Chưa có'}</p>}
                           <p className="text-xs text-[#4a4036] font-medium mt-0.5">📅 Thời gian: {dateText}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1877,7 +1885,7 @@ export default function App() {
                 <div className="space-y-3 text-xs">
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
                     <div className="flex justify-between"><span className="text-[#635950]">Khách hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone ? <a href={`tel:${confirmationModal.show.clientPhone}`} className="text-[#137333] hover:underline font-bold">{confirmationModal.show.clientPhone}</a> : 'Chưa cung cấp'}</strong></div>
                     <div className="flex justify-between"><span className="text-[#635950]">Gói dịch vụ:</span><span className="font-bold bg-[#ffffff] text-[#1c1815] border border-[#dcd2c4] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
                   </div>
 
@@ -1917,7 +1925,7 @@ export default function App() {
                   <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
                     <div className="flex justify-between"><span className="text-[#635950]">Tên Show / Gói:</span><span className="font-bold text-[#1c1815]">{confirmationModal.show.packageType}</span></div>
                     <div className="flex justify-between"><span className="text-[#635950]">Tên Khách Hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    <div className="flex justify-between"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone ? <a href={`tel:${confirmationModal.show.clientPhone}`} className="text-[#137333] hover:underline font-bold">{confirmationModal.show.clientPhone}</a> : 'Chưa cung cấp'}</strong></div>
                   </div>
 
                   <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
@@ -1982,7 +1990,7 @@ export default function App() {
                           `----------------------------------------\n` +
                           `Cảm ơn bạn đã đồng hành cùng Our June Studio!`;
                 } else {
-                  const crewText = getNormalizeCrewList(show.assignedStaff)
+                  const crewText = getIconCrewList(show.assignedStaff)
                     .map(c => `+ ${c.role}: ${c.name}`)
                     .join('\n');
 
