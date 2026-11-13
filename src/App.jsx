@@ -139,58 +139,6 @@ export default function App() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
 
-  const [isShowModalOpen, setIsShowModalOpen] = useState(false);
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
-  const [editingShow, setEditingShow] = useState(null);
-  const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
-  const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
-  const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
-  const [modalOriginTab, setModalOriginTab] = useState('calendar');
-
-  const [editingStaff, setEditingStaff] = useState(null);
-  const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
-
-  const [confirmationModal, setConfirmationModal] = useState({ isOpen: false, type: 'client', show: null });
-
-  const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
-  const [pickerMonth, setPickerMonth] = useState(selectedMonth);
-  const [pickerYear, setPickerYear] = useState(selectedYear);
-
-  // LẮNG NGHE SỰ KIỆN PHÍM ESC TRÊN BÀN PHÍM ĐỂ ĐÓNG NHANH CÁC MODAL
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (isDateRangePickerOpen) {
-          setIsDateRangePickerOpen(false);
-          return;
-        }
-        if (confirmationModal.isOpen) {
-          setConfirmationModal({ isOpen: false, type: 'client', show: null });
-          return;
-        }
-        if (selectedStaffForModal) {
-          setSelectedStaffForModal(null);
-          return;
-        }
-        if (isShowModalOpen) {
-          setIsShowModalOpen(false);
-          setActiveTab(modalOriginTab);
-          return;
-        }
-        if (isStaffModalOpen) {
-          setIsStaffModalOpen(false);
-          return;
-        }
-        if (selectedCalendarDay) {
-          setSelectedCalendarDay(null);
-          return;
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDateRangePickerOpen, confirmationModal.isOpen, selectedStaffForModal, isShowModalOpen, isStaffModalOpen, selectedCalendarDay, modalOriginTab]);
-
   useEffect(() => {
     const unsubShows = onSnapshot(collection(db, "shows"), (snapshot) => {
       const items = snapshot.docs.map(doc => {
@@ -234,6 +182,7 @@ export default function App() {
         if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
           setIsGoogleConnected(true);
         } else if (savedToken) {
+          // Token đã cũ, yêu cầu làm mới ngầm hoặc đánh dấu hết hạn
           setIsGoogleConnected(false);
         }
       }
@@ -252,6 +201,7 @@ export default function App() {
     }
   };
 
+  // Hàm tự động làm mới hoặc kiểm tra token trước khi gọi Google API
   const getValidAccessToken = async () => {
     const savedToken = localStorage.getItem('google_access_token');
     const expiresAt = localStorage.getItem('google_token_expires_at');
@@ -260,11 +210,13 @@ export default function App() {
       return savedToken;
     }
     
+    // Nếu token hết hạn, tự động gọi lại tokenClient ở chế độ không hiện popup (nếu trình duyệt cho phép) hoặc yêu cầu bấm kết nối lại
     return new Promise((resolve) => {
       if (!tokenClient) {
         resolve(null);
         return;
       }
+      // Cập nhật callback tạm thời cho việc làm mới token ngầm
       tokenClient.callback = (response) => {
         if (response && response.access_token) {
           const newExpiresAt = new Date().getTime() + (response.expires_in || 3600) * 1000;
@@ -309,6 +261,7 @@ export default function App() {
     const expectedSummary = `[${showData.packageType}] ${showData.clientName}`;
 
     try {
+      // KIỂM TRA TRÙNG LẶP: Lấy danh sách sự kiện trên Google Calendar xem đã có sự kiện này chưa
       const checkRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
@@ -320,6 +273,7 @@ export default function App() {
       );
 
       if (alreadyExists) {
+        // Đã có rồi thì không tạo mới nữa để tránh bị lặp
         return;
       }
 
@@ -448,6 +402,45 @@ export default function App() {
       alert("Có lỗi xảy ra khi đồng bộ với Google Calendar.");
     }
   };
+
+  const [isShowModalOpen, setIsShowModalOpen] = useState(false);
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [editingShow, setEditingShow] = useState(null);
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
+  const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
+  const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
+  const [modalOriginTab, setModalOriginTab] = useState('calendar');
+
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
+
+  const [confirmationModal, setConfirmationModal] = useState({ isOpen: false, type: 'client', show: null });
+
+  const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
+  const [pickerMonth, setPickerMonth] = useState(selectedMonth);
+  const [pickerYear, setPickerYear] = useState(selectedYear);
+
+  const [showFormData, setShowFormData] = useState({
+    clientName: '',
+    clientPhone: '',
+    date: '', 
+    endDate: '', 
+    startTime: '',
+    endTime: '',
+    packageType: '',
+    location: '',
+    assignedStaff: { crewList: [] },
+    totalAmount: 0,
+    depositAmount: 0,
+    status: 'Chưa cọc',
+    expenses: [],
+    notes: ''
+  });
+
+  const [newExpenseTitle, setNewExpenseTitle] = useState('');
+  const [newExpenseAmount, setNewExpenseAmount] = useState('');
+
+  const isNonCommercialPackage = (pkgType) => pkgType === 'Gặp khách' || pkgType === 'Đợi khách' || pkgType === 'Ngày nghỉ';
 
   const getNormalizeCrewList = (assignedStaff) => {
     if (!assignedStaff) return [];
@@ -943,6 +936,7 @@ export default function App() {
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
+          {/* Hàng trên cùng: Logo và nút Google */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -969,7 +963,10 @@ export default function App() {
             </div>
           </div>
 
+          {/* Hàng điều hướng chia thành 2 tầng rõ rệt: Tầng 1 (Tab nội bộ) & Tầng 2 (4 Nút lối tắt) */}
           <div className="flex flex-col gap-1.5 bg-[#f2ede6] p-1.5 rounded-xl border border-[#e6dfd5]">
+            
+            {/* Tầng 1: Các tab chức năng chính */}
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
               <button onClick={() => setActiveTab('calendar')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
                 <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
@@ -989,11 +986,44 @@ export default function App() {
               </button>
             </div>
 
+            {/* Tầng 2: 4 Nút lối tắt nhanh đến các trang phụ */}
             <div className="grid grid-cols-4 gap-1 pt-1 border-t border-[#e6dfd5]">
-              <a href="https://beacons.ai/ourjune.studio" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>💰 Báo giá</span></a>
-              <a href="https://shotpik.com/dashboard" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>📂 Album</span></a>
-              <a href="https://www.ourjunestudio.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>🌐 Web chính</span></a>
-              <a href="https://ourjunestudio.shotpik.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>🎞️ Film</span></a>
+              <a
+                href="https://beacons.ai/ourjune.studio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở trang Báo giá"
+              >
+                <span>💰 Báo giá</span>
+              </a>
+              <a
+                href="https://shotpik.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Album trả khách"
+              >
+                <span>📂 Album</span>
+              </a>
+              <a
+                href="https://www.ourjunestudio.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Web chính thức"
+              >
+                <span>🌐 Web chính</span>
+              </a>
+              <a
+                href="https://ourjunestudio.shotpik.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Portfolio Ảnh Film"
+              >
+                <span>🎞️ Film</span>
+              </a>
             </div>
 
           </div>
@@ -1003,6 +1033,7 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
+        {/* Month / Year Bar & Quick Data Actions */}
         <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-[#635950] uppercase tracking-wider shrink-0">Thời gian:</span>
@@ -1019,7 +1050,9 @@ export default function App() {
               <Icons.Plus className="w-4 h-4 text-[#dcd2c4]" />
               <span>Tạo Lịch Hẹn / Show Mới</span>
             </button>
-            <button onClick={handleExportData} title="Xuất File Sao Lưu" className="p-1.5 border border-[#dcd2c4] rounded-lg text-[#635950] hover:bg-[#f2ede6] transition"><Icons.Download className="w-4 h-4" /></button>
+            <button onClick={handleExportData} title="Xuất File Sao Lưu" className="p-1.5 border border-[#dcd2c4] rounded-lg text-[#635950] hover:bg-[#f2ede6] transition">
+              <Icons.Download className="w-4 h-4" />
+            </button>
             <label title="Nhập File Dữ Liệu" className="p-1.5 border border-[#dcd2c4] rounded-lg text-[#635950] hover:bg-[#f2ede6] transition cursor-pointer">
               <Icons.Upload className="w-4 h-4" />
               <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
@@ -1027,6 +1060,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* Financial Metrics Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
@@ -1061,6 +1095,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* TAB 1: GOOGLE CALENDAR VIEW */}
         {activeTab === 'calendar' && (
           <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 sm:p-4 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
@@ -1081,6 +1116,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* Google Calendar Grid */}
             <div className="w-full overflow-x-auto">
               <div className="grid grid-cols-7 border-b border-[#e6dfd5] text-center pb-2 min-w-[320px]">
                 {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (<div key={idx} className="text-xs font-semibold text-[#635950]">{dayName}</div>))}
@@ -1133,6 +1169,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 2: SHOW LIST VIEW */}
         {activeTab === 'list' && (
           <div className="space-y-3">
             <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-2 justify-between">
@@ -1228,6 +1265,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 3: YEARLY ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-lg space-y-3">
@@ -1332,6 +1370,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 4: STAFF MANAGEMENT */}
         {activeTab === 'staff' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-4">
@@ -1368,8 +1407,8 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Thao tác thêm hoặc xóa lịch trên web sẽ tự động đồng bộ ngay lập tức sang Google Calendar.<br/>
-                - Bấm phím <strong>Esc</strong> trên bàn phím bất cứ lúc nào để đóng nhanh các cửa sổ bật lên.
+                - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.<br/>
+                - Nút Đồng bộ thông minh ở góc trên dùng khi cần quét toàn bộ hoặc đồng bộ bù từ máy tính sang điện thoại.
               </p>
             </div>
           </div>
@@ -1489,7 +1528,7 @@ export default function App() {
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg my-6 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-3.5 border-b border-[#e6dfd5] flex justify-between items-center bg-[#ffffff] shrink-0">
               <h3 className="font-bold text-xs text-[#1c1815]">{editingShow ? 'Chỉnh Sửa Lịch Hẹn / Show' : 'Tạo Lịch Hẹn / Show Mới'}</h3>
-              <button onClick={() => { setIsShowModalOpen(false); setActiveTab(modalOriginTab); }} className="text-[#635950] hover:text-[#1c1815]"><Icons.X className="w-4 h-4" /></button>
+              <button onClick={() => setIsShowModalOpen(false)} className="text-[#635950] hover:text-[#1c1815]"><Icons.X className="w-4 h-4" /></button>
             </div>
 
             <form onSubmit={handleSaveShow} autoComplete="off" className="p-3.5 sm:p-4 space-y-2.5 overflow-y-auto flex-1 text-[11px]">
@@ -1815,7 +1854,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: EXPORT CONFIRMATION CARDS */}
+      {/* MODAL: EXPORT CONFIRMATION CARDS (Lớp nền che kín & làm mờ hoàn toàn các bảng phía sau) */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
@@ -1927,7 +1966,7 @@ export default function App() {
                   text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH HẸN & DỊCH VỤ\n` +
                          `----------------------------------------\n` +
                          `- Khách hàng: ${show.clientName}\n` +
-                         `- SĐT: ${show.clientPhone || 'Chura cung cấp'}\n` +
+                         `- SĐT: ${show.clientPhone || 'Chưa cung cấp'}\n` +
                          `- Gói dịch vụ: ${show.packageType}\n` +
                          `- Ngày: ${dateStrText}\n` +
                          `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
