@@ -168,14 +168,22 @@ export default function App() {
           scope: SCOPES,
           callback: (response) => {
             if (response && response.access_token) {
+              const expiresAt = new Date().getTime() + (response.expires_in || 3600) * 1000;
               localStorage.setItem('google_access_token', response.access_token);
+              localStorage.setItem('google_token_expires_at', expiresAt);
               setIsGoogleConnected(true);
             }
           },
         });
         setTokenClient(client);
-        if (localStorage.getItem('google_access_token')) {
+        
+        const savedToken = localStorage.getItem('google_access_token');
+        const expiresAt = localStorage.getItem('google_token_expires_at');
+        if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
           setIsGoogleConnected(true);
+        } else if (savedToken) {
+          // Token đã cũ, yêu cầu làm mới ngầm hoặc đánh dấu hết hạn
+          setIsGoogleConnected(false);
         }
       }
     };
@@ -193,9 +201,44 @@ export default function App() {
     }
   };
 
+  // Hàm tự động làm mới hoặc kiểm tra token trước khi gọi Google API
+  const getValidAccessToken = async () => {
+    const savedToken = localStorage.getItem('google_access_token');
+    const expiresAt = localStorage.getItem('google_token_expires_at');
+    
+    if (savedToken && expiresAt && new Date().getTime() < Number(expiresAt)) {
+      return savedToken;
+    }
+    
+    // Nếu token hết hạn, tự động gọi lại tokenClient ở chế độ không hiện popup (nếu trình duyệt cho phép) hoặc yêu cầu bấm kết nối lại
+    return new Promise((resolve) => {
+      if (!tokenClient) {
+        resolve(null);
+        return;
+      }
+      // Cập nhật callback tạm thời cho việc làm mới token ngầm
+      tokenClient.callback = (response) => {
+        if (response && response.access_token) {
+          const newExpiresAt = new Date().getTime() + (response.expires_in || 3600) * 1000;
+          localStorage.setItem('google_access_token', response.access_token);
+          localStorage.setItem('google_token_expires_at', newExpiresAt);
+          setIsGoogleConnected(true);
+          resolve(response.access_token);
+        } else {
+          setIsGoogleConnected(false);
+          resolve(null);
+        }
+      };
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+  };
+
   const syncShowToGoogleCalendar = async (showData) => {
-    const accessToken = localStorage.getItem('google_access_token');
-    if (!accessToken) return;
+    const accessToken = await getValidAccessToken();
+    if (!accessToken) {
+      setIsGoogleConnected(false);
+      return;
+    }
 
     const startDate = showData.date;
     const endDateObj = showData.endDate ? new Date(showData.endDate) : new Date(showData.date);
@@ -215,18 +258,36 @@ export default function App() {
       colorId = '10'; 
     }
 
-    const eventDetails = {
-      summary: `[${showData.packageType}] ${showData.clientName}`,
-      description: showData.packageType === 'Ngày nghỉ' 
-        ? `Ghi chú: ${showData.notes || 'Không có'}` 
-        : `SĐT: ${showData.clientPhone || 'Không có'}\nĐịa điểm: ${showData.location || 'Studio'}\nGhi chú: ${showData.notes || 'Không có'}`,
-      location: showData.packageType === 'Ngày nghỉ' ? 'Cá nhân' : (showData.location || 'Our June Studio'),
-      start: { date: startDate },
-      end: { date: endDateStr },
-      colorId: colorId,
-    };
+    const expectedSummary = `[${showData.packageType}] ${showData.clientName}`;
 
     try {
+      // KIỂM TRA TRÙNG LẶP: Lấy danh sách sự kiện trên Google Calendar xem đã có sự kiện này chưa
+      const checkRes = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      const checkData = await checkRes.json();
+      const existingEvents = checkData.items || [];
+      
+      const alreadyExists = existingEvents.some(event => 
+        event.summary === expectedSummary && event.start && event.start.date === startDate
+      );
+
+      if (alreadyExists) {
+        // Đã có rồi thì không tạo mới nữa để tránh bị lặp
+        return;
+      }
+
+      const eventDetails = {
+        summary: expectedSummary,
+        description: showData.packageType === 'Ngày nghỉ' 
+          ? `Ghi chú: ${showData.notes || 'Không có'}` 
+          : `SĐT: ${showData.clientPhone || 'Không có'}\nĐịa điểm: ${showData.location || 'Studio'}\nGhi chú: ${showData.notes || 'Không có'}`,
+        location: showData.packageType === 'Ngày nghỉ' ? 'Cá nhân' : (showData.location || 'Our June Studio'),
+        start: { date: startDate },
+        end: { date: endDateStr },
+        colorId: colorId,
+      };
+
       await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
         method: 'POST',
         headers: {
@@ -241,7 +302,7 @@ export default function App() {
   };
 
   const deleteShowFromGoogleCalendar = async (showData) => {
-    const accessToken = localStorage.getItem('google_access_token');
+    const accessToken = await getValidAccessToken();
     if (!accessToken) return;
 
     try {
@@ -268,7 +329,7 @@ export default function App() {
   };
 
   const handleSmartSyncWithGoogle = async () => {
-    const accessToken = localStorage.getItem('google_access_token');
+    const accessToken = await getValidAccessToken();
     if (!accessToken) {
       alert("Vui lòng kết nối Google trước!");
       return;
