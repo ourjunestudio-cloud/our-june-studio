@@ -20,9 +20,7 @@ const db = getFirestore(app);
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
-// GOOGLE SHEET WEBHOOK URL MỚI CỦA VIỆT
-const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyDLBRRaPqOW8TcCg80CJqMmcpZOU_89KWWOkMWWfAoqB_SwbkFtXD8KFR92fPTv-ch/exec";
-
+// ĐÃ SỬA: Dùng Intl.DateTimeFormat để ép chuẩn xác múi giờ Việt Nam (Asia/Ho_Chi_Minh)
 const getVietnamTodayStr = () => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -30,7 +28,7 @@ const getVietnamTodayStr = () => {
     month: '2-digit',
     day: '2-digit'
   });
-  return formatter.format(new Date());
+  return formatter.format(new Date()); // Trả về định dạng chuẩn YYYY-MM-DD
 };
 
 const Icons = {
@@ -247,91 +245,6 @@ export default function App() {
     });
   };
 
-  const isNonCommercialPackage = (pkgType) => pkgType === 'Gặp khách' || pkgType === 'Đợi khách' || pkgType === 'Ngày nghỉ';
-
-  const getNormalizeCrewList = (assignedStaff) => {
-    if (!assignedStaff) return [];
-    if (assignedStaff.crewList && Array.isArray(assignedStaff.crewList)) {
-      return assignedStaff.crewList;
-    }
-    return [];
-  };
-
-  const calculateShowStaffPay = (show) => {
-    if (isNonCommercialPackage(show.packageType)) return 0;
-    const crewList = getNormalizeCrewList(show.assignedStaff);
-    return crewList.reduce((sum, item) => sum + Number(item.pay || 0), 0);
-  };
-
-  const calculateShowOtherExpenses = (show) => {
-    if (isNonCommercialPackage(show.packageType)) return 0;
-    return (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  };
-
-  const calculateShowTotalExpenses = (show) => {
-    if (isNonCommercialPackage(show.packageType)) return 0;
-    const staffPay = calculateShowStaffPay(show);
-    const otherExpenses = calculateShowOtherExpenses(show);
-    return staffPay + otherExpenses;
-  };
-
-  // HÀM ĐỒNG BỘ DỮ LIỆU SANG GOOGLE SHEET (TỪNG SHOW)
-  const syncShowToGoogleSheet = async (showData) => {
-    if (!GOOGLE_SHEET_WEBHOOK_URL) return;
-
-    try {
-      const totalAmount = Number(showData.totalAmount || 0);
-      const depositAmount = Number(showData.depositAmount || 0);
-      const totalExpenses = calculateShowTotalExpenses(showData);
-
-      const payload = {
-        id: showData.id || ('show-' + Date.now()),
-        date: showData.date || '',
-        clientName: showData.clientName || 'Khách lẻ',
-        packageType: showData.packageType || 'Chụp hình',
-        totalAmount: totalAmount,
-        depositAmount: depositAmount,
-        expenses: totalExpenses,
-        status: showData.status || 'Chưa cọc'
-      };
-
-      await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-    } catch (err) {
-      console.error("Lỗi đồng bộ sang Google Sheet:", err);
-    }
-  };
-
-  // HÀM ĐỒNG BỘ TOÀN BỘ CÁC SHOW CŨ SANG GOOGLE SHEET
-  const handleSyncAllToGoogleSheet = async () => {
-    if (!GOOGLE_SHEET_WEBHOOK_URL) {
-      alert("Chưa cấu hình URL Google Sheet!");
-      return;
-    }
-
-    if (!window.confirm(`Bạn có chắc chắn muốn đẩy toàn bộ ${shows.length} show hiện có lên Google Sheet không?`)) {
-      return;
-    }
-
-    try {
-      let count = 0;
-      for (const show of shows) {
-        await syncShowToGoogleSheet(show);
-        count++;
-      }
-      alert(`Đã đồng bộ thành công ${count} show lên Google Sheet!`);
-    } catch (err) {
-      console.error("Lỗi đồng bộ tất cả sang Google Sheet:", err);
-      alert("Có lỗi xảy ra khi đồng bộ dữ liệu.");
-    }
-  };
-
   const syncShowToGoogleCalendar = async (showData) => {
     const accessToken = await getVerifiedAccessToken();
     if (!accessToken) {
@@ -539,6 +452,34 @@ export default function App() {
 
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
+
+  const isNonCommercialPackage = (pkgType) => pkgType === 'Gặp khách' || pkgType === 'Đợi khách' || pkgType === 'Ngày nghỉ';
+
+  const getNormalizeCrewList = (assignedStaff) => {
+    if (!assignedStaff) return [];
+    if (assignedStaff.crewList && Array.isArray(assignedStaff.crewList)) {
+      return assignedStaff.crewList;
+    }
+    return [];
+  };
+
+  const calculateShowStaffPay = (show) => {
+    if (isNonCommercialPackage(show.packageType)) return 0;
+    const crewList = getNormalizeCrewList(show.assignedStaff);
+    return crewList.reduce((sum, item) => sum + Number(item.pay || 0), 0);
+  };
+
+  const calculateShowOtherExpenses = (show) => {
+    if (isNonCommercialPackage(show.packageType)) return 0;
+    return (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  };
+
+  const calculateShowTotalExpenses = (show) => {
+    if (isNonCommercialPackage(show.packageType)) return 0;
+    const staffPay = calculateShowStaffPay(show);
+    const otherExpenses = calculateShowOtherExpenses(show);
+    return staffPay + otherExpenses;
+  };
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' })
@@ -875,16 +816,13 @@ export default function App() {
       }
 
       let updatedShows = [...shows];
-      let savedId = '';
       if (editingShow) {
         await deleteShowFromGoogleCalendar(editingShow);
         const showRef = doc(db, "shows", editingShow.id);
         await updateDoc(showRef, payload);
-        savedId = editingShow.id;
         updatedShows = updatedShows.map(s => s.id === editingShow.id ? { ...payload, id: editingShow.id } : s);
       } else {
         const docRef = await addDoc(collection(db, "shows"), payload);
-        savedId = docRef.id;
         updatedShows.push({ ...payload, id: docRef.id });
       }
       
@@ -892,9 +830,6 @@ export default function App() {
       if (!syncSuccess) {
         alert("⚠️ Lịch đã được lưu vào web nhưng chưa thể đẩy lên Google Calendar. Vui lòng kiểm tra lại kết nối.");
       }
-
-      // ĐỒNG BỘ SANG GOOGLE SHEET
-      await syncShowToGoogleSheet({ ...payload, id: savedId });
 
       setIsShowModalOpen(false);
 
@@ -1019,9 +954,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
+      {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
+          {/* Hàng trên cùng: Logo và nút Google 1 chạm */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -1029,7 +966,7 @@ export default function App() {
                 <span className="text-[10px] bg-[#f0eae1] text-[#635950] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#dcd2c4]">STUDIO</span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={handleConnectGoogle}
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1 ${
@@ -1042,27 +979,21 @@ export default function App() {
                 {isGoogleConnected ? '✓ Đã kết nối Google' : '⚠️ Cần kết nối lại Google'}
               </button>
               {isGoogleConnected && (
-                <>
-                  <button
-                    onClick={handleSmartSyncWithGoogle}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                    title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
-                  >
-                    📱 Đồng bộ Google
-                  </button>
-                  <button
-                    onClick={handleSyncAllToGoogleSheet}
-                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                    title="Đẩy toàn bộ dữ liệu show hiện tại sang Google Sheet"
-                  >
-                    📊 Đồng bộ sang Sheet
-                  </button>
-                </>
+                <button
+                  onClick={handleSmartSyncWithGoogle}
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
+                  title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
+                >
+                  📱 Đồng bộ Google
+                </button>
               )}
             </div>
           </div>
 
+          {/* Hàng điều hướng chia thành 2 tầng rõ rệt: Tầng 1 (Tab nội bộ) & Tầng 2 (4 Nút lối tắt) */}
           <div className="flex flex-col gap-1.5 bg-[#f2ede6] p-1.5 rounded-xl border border-[#e6dfd5]">
+            
+            {/* Tầng 1: Các tab chức năng chính */}
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
               <button onClick={() => setActiveTab('calendar')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
                 <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
@@ -1082,18 +1013,54 @@ export default function App() {
               </button>
             </div>
 
+            {/* Tầng 2: 4 Nút lối tắt nhanh đến các trang phụ */}
             <div className="grid grid-cols-4 gap-1 pt-1 border-t border-[#e6dfd5]">
-              <a href="https://beacons.ai/ourjune.studio" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>💰 Báo giá</span></a>
-              <a href="https://shotpik.com/dashboard" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>📂 Album</span></a>
-              <a href="https://www.ourjunestudio.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>🌐 Web chính</span></a>
-              <a href="https://ourjunestudio.shotpik.com/" target="_blank" rel="noopener noreferrer" className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"><span>🎞️ Film</span></a>
+              <a
+                href="https://beacons.ai/ourjune.studio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở trang Báo giá"
+              >
+                <span>💰 Báo giá</span>
+              </a>
+              <a
+                href="https://shotpik.com/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Album trả khách"
+              >
+                <span>📂 Album</span>
+              </a>
+              <a
+                href="https://www.ourjunestudio.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Web chính thức"
+              >
+                <span>🌐 Web chính</span>
+              </a>
+              <a
+                href="https://ourjunestudio.shotpik.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1 px-2 rounded-md bg-[#ffffff] border border-[#dcd2c4] text-[#635950] hover:text-[#1c1815] hover:bg-[#faf8f5] transition-all flex items-center justify-center gap-1 text-[11px] font-semibold text-center truncate"
+                title="Mở Portfolio Ảnh Film"
+              >
+                <span>🎞️ Film</span>
+              </a>
             </div>
+
           </div>
 
         </div>
       </header>
 
+      {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
+        {/* Month / Year Bar & Quick Data Actions */}
         <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-[#635950] uppercase tracking-wider shrink-0">Thời gian:</span>
@@ -1120,6 +1087,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* Financial Metrics Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
@@ -1154,6 +1122,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* TAB 1: GOOGLE CALENDAR VIEW */}
         {activeTab === 'calendar' && (
           <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 sm:p-4 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
@@ -1174,6 +1143,7 @@ export default function App() {
               </div>
             </div>
 
+            {/* Google Calendar Grid */}
             <div className="w-full overflow-x-auto">
               <div className="grid grid-cols-7 border-b border-[#e6dfd5] text-center pb-2 min-w-[320px]">
                 {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (<div key={idx} className="text-xs font-semibold text-[#635950]">{dayName}</div>))}
@@ -1226,6 +1196,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 2: SHOW LIST VIEW */}
         {activeTab === 'list' && (
           <div className="space-y-3">
             <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-2 justify-between">
@@ -1321,6 +1292,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 3: YEARLY ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-lg space-y-3">
@@ -1425,6 +1397,7 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 4: STAFF MANAGEMENT */}
         {activeTab === 'staff' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-4">
@@ -1461,7 +1434,7 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar và Google Sheet.<br/>
+                - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.<br/>
                 - Nút Đồng bộ thông minh ở góc trên dùng khi cần quét toàn bộ hoặc đồng bộ bù từ máy tính sang điện thoại.
               </p>
             </div>
@@ -1469,6 +1442,7 @@ export default function App() {
         )}
       </main>
 
+      {/* MODAL: STAFF FORM */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-sm overflow-hidden">
@@ -1506,6 +1480,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: STAFF YEARLY SCHEDULE */}
       {selectedStaffForModal && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
@@ -1574,6 +1549,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: SHOW FORM */}
       {isShowModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg my-6 overflow-hidden flex flex-col max-h-[90vh]">
@@ -1776,6 +1752,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: CALENDAR DAY DETAIL */}
       {selectedCalendarDay && !confirmationModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-[#1c1815]/40 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1904,6 +1881,7 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL: EXPORT CONFIRMATION CARDS */}
       {confirmationModal.isOpen && confirmationModal.show && (
         <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
