@@ -20,8 +20,8 @@ const db = getFirestore(app);
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
-// GOOGLE SHEET WEBHOOK URL CỦA VIỆT
-const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby7H_lbrSkp2rla-1493lJbXbP0y0s31HNuSDeG1V3ldz1ILYZrDCmA7VWzDXXy9s-E/exec";
+// GOOGLE SHEET WEBHOOK URL MỚI CỦA VIỆT
+const GOOGLE_SHEET_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyDLBRRaPqOW8TcCg80CJqMmcpZOU_89KWWOkMWWfAoqB_SwbkFtXD8KFR92fPTv-ch/exec";
 
 const getVietnamTodayStr = () => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
