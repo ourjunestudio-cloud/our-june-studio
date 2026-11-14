@@ -208,6 +208,40 @@ export default function App() {
     };
   }, []);
 
+  const [isShowModalOpen, setIsShowModalOpen] = useState(false);
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [editingShow, setEditingShow] = useState(null);
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
+  const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
+  const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
+  const [modalOriginTab, setModalOriginTab] = useState('calendar');
+
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
+
+  const [confirmationModal, setConfirmationModal] = useState({ isOpen: false, type: 'client', show: null });
+
+  // Lắng nghe sự kiện phím ESC để đóng nhanh các modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (confirmationModal.isOpen) {
+          setConfirmationModal({ isOpen: false, type: 'client', show: null });
+        } else if (isShowModalOpen) {
+          setIsShowModalOpen(false);
+        } else if (isStaffModalOpen) {
+          setIsStaffModalOpen(false);
+        } else if (selectedStaffForModal) {
+          setSelectedStaffForModal(null);
+        } else if (selectedCalendarDay) {
+          setSelectedCalendarDay(null);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [confirmationModal.isOpen, isShowModalOpen, isStaffModalOpen, selectedStaffForModal, selectedCalendarDay]);
+
   const handleConnectGoogle = () => {
     if (tokenClient) {
       tokenClient.requestAccessToken({ prompt: '' });
@@ -419,19 +453,6 @@ export default function App() {
       alert("Có lỗi xảy ra khi đồng bộ với Google Calendar.");
     }
   };
-
-  const [isShowModalOpen, setIsShowModalOpen] = useState(false);
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
-  const [editingShow, setEditingShow] = useState(null);
-  const [selectedCalendarDay, setSelectedCalendarDay] = useState(null);
-  const [expandedAnalyticsMonth, setExpandedAnalyticsMonth] = useState(null);
-  const [selectedStaffForModal, setSelectedStaffForModal] = useState(null);
-  const [modalOriginTab, setModalOriginTab] = useState('calendar');
-
-  const [editingStaff, setEditingStaff] = useState(null);
-  const [staffFormData, setStaffFormData] = useState({ name: '', role: 'Photo', phone: '' });
-
-  const [confirmationModal, setConfirmationModal] = useState({ isOpen: false, type: 'client', show: null });
 
   const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(selectedMonth);
@@ -1495,6 +1516,7 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
+                - Bấm phím **ESC** trên bàn phím bất cứ lúc nào để đóng nhanh các cửa sổ pop-up.<br/>
                 - Nút **"Gọi"** cạnh tên nhân sự sẽ kích hoạt ứng dụng gọi điện ngay trên điện thoại hoặc máy tính.<br/>
                 - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.
               </p>
