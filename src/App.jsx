@@ -20,11 +20,15 @@ const db = getFirestore(app);
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
+// ĐÃ SỬA: Dùng Intl.DateTimeFormat để ép chuẩn xác múi giờ Việt Nam (Asia/Ho_Chi_Minh)
 const getVietnamTodayStr = () => {
-  const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const vnTime = new Date(utc + (3600000 * 7));
-  return vnTime.toISOString().split('T')[0];
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(new Date()); // Trả về định dạng chuẩn YYYY-MM-DD
 };
 
 const Icons = {
@@ -200,7 +204,6 @@ export default function App() {
     };
   }, []);
 
-  // TỐI ƯU 1 CHẠM: Bỏ prompt 'consent' thừa thãi, hệ thống sẽ tự động xác thực mượt mà
   const handleConnectGoogle = () => {
     if (tokenClient) {
       tokenClient.requestAccessToken({ prompt: '' });
