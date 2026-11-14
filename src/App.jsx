@@ -275,7 +275,7 @@ export default function App() {
     return staffPay + otherExpenses;
   };
 
-  // HÀM ĐỒNG BỘ DỮ LIỆU SANG GOOGLE SHEET
+  // HÀM ĐỒNG BỘ DỮ LIỆU SANG GOOGLE SHEET (TỪNG SHOW)
   const syncShowToGoogleSheet = async (showData) => {
     if (!GOOGLE_SHEET_WEBHOOK_URL) return;
 
@@ -305,6 +305,30 @@ export default function App() {
       });
     } catch (err) {
       console.error("Lỗi đồng bộ sang Google Sheet:", err);
+    }
+  };
+
+  // HÀM ĐỒNG BỘ TOÀN BỘ CÁC SHOW CŨ SANG GOOGLE SHEET
+  const handleSyncAllToGoogleSheet = async () => {
+    if (!GOOGLE_SHEET_WEBHOOK_URL) {
+      alert("Chưa cấu hình URL Google Sheet!");
+      return;
+    }
+
+    if (!window.confirm(`Bạn có chắc chắn muốn đẩy toàn bộ ${shows.length} show hiện có lên Google Sheet không?`)) {
+      return;
+    }
+
+    try {
+      let count = 0;
+      for (const show of shows) {
+        await syncShowToGoogleSheet(show);
+        count++;
+      }
+      alert(`Đã đồng bộ thành công ${count} show lên Google Sheet!`);
+    } catch (err) {
+      console.error("Lỗi đồng bộ tất cả sang Google Sheet:", err);
+      alert("Có lỗi xảy ra khi đồng bộ dữ liệu.");
     }
   };
 
@@ -1005,7 +1029,7 @@ export default function App() {
                 <span className="text-[10px] bg-[#f0eae1] text-[#635950] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#dcd2c4]">STUDIO</span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
               <button
                 onClick={handleConnectGoogle}
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1 ${
@@ -1018,13 +1042,22 @@ export default function App() {
                 {isGoogleConnected ? '✓ Đã kết nối Google' : '⚠️ Cần kết nối lại Google'}
               </button>
               {isGoogleConnected && (
-                <button
-                  onClick={handleSmartSyncWithGoogle}
-                  className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                  title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
-                >
-                  📱 Đồng bộ Google
-                </button>
+                <>
+                  <button
+                    onClick={handleSmartSyncWithGoogle}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
+                    title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
+                  >
+                    📱 Đồng bộ Google
+                  </button>
+                  <button
+                    onClick={handleSyncAllToGoogleSheet}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
+                    title="Đẩy toàn bộ dữ liệu show hiện tại sang Google Sheet"
+                  >
+                    📊 Đồng bộ sang Sheet
+                  </button>
+                </>
               )}
             </div>
           </div>
