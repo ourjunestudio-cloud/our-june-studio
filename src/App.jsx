@@ -1490,21 +1490,25 @@ export default function App() {
                         <h4 onClick={() => setSelectedStaffForModal(st)} className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5 cursor-pointer">
                           <span>👤</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
                         </h4>
-                        {st.phone && (
-                          <a
-                            href={`tel:${st.phone}`}
-                            className="p-1 rounded-md bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1 text-[10px] font-bold"
-                            title={`Gọi điện cho ${st.name}`}
-                          >
-                            <Icons.Phone /> Gọi
-                          </a>
-                        )}
                       </div>
                       <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
                       <p className="text-[11px] text-[#635950] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
+                      {st.phone ? (
+                        <a
+                          href={`tel:${st.phone}`}
+                          className="p-1.5 hover:bg-[#e6f4ea] rounded-lg text-[#137333] border border-[#ceead6] transition"
+                          title={`Gọi cho ${st.name}`}
+                        >
+                          <Icons.Phone className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <span className="p-1.5 text-[#a89f91] opacity-50 cursor-not-allowed" title="Chưa có SĐT">
+                          <Icons.Phone className="w-4 h-4" />
+                        </span>
+                      )}
                       <button onClick={() => handleOpenStaffModal(st)} className="p-1.5 hover:bg-[#ffffff] rounded-lg text-[#635950] border border-[#dcd2c4]" title="Sửa thông tin"><Icons.Edit className="w-4 h-4" /></button>
                       <button onClick={() => handleDeleteStaff(st.id)} className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-700 border border-rose-200" title="Xóa"><Icons.Trash2 className="w-4 h-4" /></button>
                     </div>
@@ -1517,7 +1521,7 @@ export default function App() {
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
                 - Bấm phím **ESC** trên bàn phím bất cứ lúc nào để đóng nhanh các cửa sổ pop-up.<br/>
-                - Nút **"Gọi"** cạnh tên nhân sự sẽ kích hoạt ứng dụng gọi điện ngay trên điện thoại hoặc máy tính.<br/>
+                - Icon hình điện thoại nhỏ cạnh nút sửa/xóa sẽ giúp gọi điện nhanh cho nhân sự.<br/>
                 - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.
               </p>
             </div>
