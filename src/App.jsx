@@ -101,6 +101,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
+  ),
+  Phone: (props) => (
+    <svg className={props.className || "w-4 h-4"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+    </svg>
   )
 };
 
@@ -649,7 +654,6 @@ export default function App() {
       let csvContent = "\uFEFF";
       csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
       
-      // Phần 1: Bảng tổng hợp các tháng
       csvContent += `--- TỔNG HỢP CÁC THÁNG TRONG NĂM ---\n`;
       csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Lợi Nhuận Chụp Ảnh,Lợi Nhuận Makeup\n`;
 
@@ -659,7 +663,6 @@ export default function App() {
 
       csvContent += `TỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n\n\n`;
 
-      // Phần 2: Danh sách chi tiết show từng tháng
       csvContent += `--- DANH SÁCH CHI TIẾT SHOW THEO TỪNG THÁNG TRONG NĂM ---\n\n`;
       
       yearlyStats.monthlyBreakdown.forEach((item) => {
@@ -669,7 +672,6 @@ export default function App() {
           
           item.monthShows.forEach((show) => {
             const dateStr = show.endDate && show.endDate !== show.date ? `${show.date} -> ${show.endDate}` : show.date;
-            // Thay thế dấu phẩy trong tên khách hàng để không lỗi định dạng CSV
             const clientClean = (show.clientName || '').replace(/,/g, ' ');
             csvContent += `${dateStr},${show.packageType},"${clientClean}",${show.status},${show.totalAmount || 0},${show.staffPay},${show.otherExp},${show.totalExp},${show.profit}\n`;
           });
@@ -1006,7 +1008,6 @@ export default function App() {
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
           
-          {/* Hàng trên cùng: Logo và nút Google 1 chạm */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center gap-2">
@@ -1038,10 +1039,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Hàng điều hướng chia thành 2 tầng rõ rệt: Tầng 1 (Tab nội bộ) & Tầng 2 (4 Nút lối tắt) */}
           <div className="flex flex-col gap-1.5 bg-[#f2ede6] p-1.5 rounded-xl border border-[#e6dfd5]">
-            
-            {/* Tầng 1: Các tab chức năng chính */}
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
               <button onClick={() => setActiveTab('calendar')} className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs font-medium ${activeTab === 'calendar' ? 'bg-[#ffffff] text-[#1c1815] font-semibold border border-[#dcd2c4] shadow-2xs' : 'text-[#635950] hover:text-[#1c1815]'}`}>
                 <Icons.Calendar className="w-3.5 h-3.5 text-[#85786c]" />
@@ -1061,7 +1059,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Tầng 2: 4 Nút lối tắt nhanh đến các trang phụ */}
             <div className="grid grid-cols-4 gap-1 pt-1 border-t border-[#e6dfd5]">
               <a
                 href="https://beacons.ai/ourjune.studio"
@@ -1108,7 +1105,6 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
-        {/* Month / Year Bar & Quick Data Actions */}
         <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-[#635950] uppercase tracking-wider shrink-0">Thời gian:</span>
@@ -1135,7 +1131,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Financial Metrics Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
             <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
@@ -1191,7 +1186,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Google Calendar Grid */}
             <div className="w-full overflow-x-auto">
               <div className="grid grid-cols-7 border-b border-[#e6dfd5] text-center pb-2 min-w-[320px]">
                 {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName, idx) => (<div key={idx} className="text-xs font-semibold text-[#635950]">{dayName}</div>))}
@@ -1470,10 +1464,21 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {staffList.map((st) => (
                   <div key={st.id} className="bg-[#f7f4ef]/50 p-3 rounded-lg border border-[#e6dfd5] flex justify-between items-center transition group hover:border-[#b5a799]">
-                    <div onClick={() => setSelectedStaffForModal(st)} className="cursor-pointer flex-1 pr-2">
-                      <h4 className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5">
-                        <span>👤</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
-                      </h4>
+                    <div className="flex-1 pr-2">
+                      <div className="flex items-center gap-2">
+                        <h4 onClick={() => setSelectedStaffForModal(st)} className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5 cursor-pointer">
+                          <span>👤</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
+                        </h4>
+                        {st.phone && (
+                          <a
+                            href={`tel:${st.phone}`}
+                            className="p-1 rounded-md bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1 text-[10px] font-bold"
+                            title={`Gọi điện cho ${st.name}`}
+                          >
+                            <Icons.Phone /> Gọi
+                          </a>
+                        )}
+                      </div>
                       <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
                       <p className="text-[11px] text-[#635950] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
                     </div>
@@ -1490,8 +1495,8 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
               <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
               <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.<br/>
-                - Nút Đồng bộ thông minh ở góc trên dùng khi cần quét toàn bộ hoặc đồng bộ bù từ máy tính sang điện thoại.
+                - Nút **"Gọi"** cạnh tên nhân sự sẽ kích hoạt ứng dụng gọi điện ngay trên điện thoại hoặc máy tính.<br/>
+                - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.
               </p>
             </div>
           </div>
@@ -1542,8 +1547,18 @@ export default function App() {
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#e6dfd5] pb-3">
               <div>
-                <h3 className="font-bold text-sm text-[#1c1815]">Lịch Chụp & Lương Năm {selectedYear} Của: <span className="text-[#137333]">{selectedStaffForModal.name}</span></h3>
-                <p className="text-xs text-[#635950] font-medium mt-0.5">Chuyên môn: {selectedStaffForModal.role}</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-[#1c1815]">Lịch Chụp & Lương Năm {selectedYear} Của: <span className="text-[#137333]">{selectedStaffForModal.name}</span></h3>
+                  {selectedStaffForModal.phone && (
+                    <a
+                      href={`tel:${selectedStaffForModal.phone}`}
+                      className="px-2 py-0.5 rounded-md bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1 text-[10px] font-bold"
+                    >
+                      <Icons.Phone /> Gọi ngay
+                    </a>
+                  )}
+                </div>
+                <p className="text-xs text-[#635950] font-medium mt-0.5">Chuyên môn: {selectedStaffForModal.role} | SĐT: {selectedStaffForModal.phone || 'Chưa có'}</p>
               </div>
               <button onClick={() => setSelectedStaffForModal(null)} className="text-[#635950] hover:text-[#1c1815] p-1"><Icons.X className="w-5 h-5" /></button>
             </div>
