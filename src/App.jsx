@@ -569,6 +569,7 @@ export default function App() {
       let revenue = 0, expenses = 0, staffPayExpenses = 0, otherExpenses = 0, count = 0;
       let makeupRevenue = 0, makeupExpenses = 0, photoRevenue = 0, photoExpenses = 0;
       const staffEarnings = {}, staffShowCounts = {};
+      const monthShows = [];
 
       shows.forEach((s) => {
         if (!s.date) return;
@@ -596,6 +597,15 @@ export default function App() {
             photoExpenses += sExp;
           }
 
+          const profit = totalAmt - sExp;
+          monthShows.push({
+            ...s,
+            staffPay: sPay,
+            otherExp: oExp,
+            totalExp: sExp,
+            profit
+          });
+
           const crewList = getNormalizeCrewList(s.assignedStaff);
           crewList.forEach((c) => {
             if (c.name && Number(c.pay) > 0) {
@@ -614,7 +624,8 @@ export default function App() {
         profit: revenue - expenses, count, 
         photoRevenue, photoExpenses, photoProfit, 
         makeupRevenue, makeupExpenses, makeupProfit, 
-        staffEarnings, staffShowCounts 
+        staffEarnings, staffShowCounts,
+        monthShows: monthShows.sort((a, b) => new Date(a.date) - new Date(b.date))
       };
     });
 
@@ -637,19 +648,40 @@ export default function App() {
     try {
       let csvContent = "\uFEFF";
       csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
+      
+      // Phần 1: Bảng tổng hợp các tháng
+      csvContent += `--- TỔNG HỢP CÁC THÁNG TRONG NĂM ---\n`;
       csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Lợi Nhuận Chụp Ảnh,Lợi Nhuận Makeup\n`;
 
       yearlyStats.monthlyBreakdown.forEach((item) => {
         csvContent += `Tháng ${item.month},${item.count},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoProfit},${item.makeupProfit}\n`;
       });
 
-      csvContent += `\nTỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n`;
+      csvContent += `TỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n\n\n`;
+
+      // Phần 2: Danh sách chi tiết show từng tháng
+      csvContent += `--- DANH SÁCH CHI TIẾT SHOW THEO TỪNG THÁNG TRONG NĂM ---\n\n`;
+      
+      yearlyStats.monthlyBreakdown.forEach((item) => {
+        if (item.monthShows.length > 0) {
+          csvContent += `THÁNG ${item.month} (${item.count} show)\n`;
+          csvContent += `Ngày,Gói dịch vụ,Tên khách hàng,Trạng thái,Doanh thu (VNĐ),Lương ekip (VNĐ),Chi phí phát sinh (VNĐ),Tổng chi phí (VNĐ),Lợi nhuận ròng (VNĐ)\n`;
+          
+          item.monthShows.forEach((show) => {
+            const dateStr = show.endDate && show.endDate !== show.date ? `${show.date} -> ${show.endDate}` : show.date;
+            // Thay thế dấu phẩy trong tên khách hàng để không lỗi định dạng CSV
+            const clientClean = (show.clientName || '').replace(/,/g, ' ');
+            csvContent += `${dateStr},${show.packageType},"${clientClean}",${show.status},${show.totalAmount || 0},${show.staffPay},${show.otherExp},${show.totalExp},${show.profit}\n`;
+          });
+          csvContent += `\n`;
+        }
+      });
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `OurJune_Studio_BaoCaoNam_${selectedYear}.csv`;
+      a.download = `OurJune_Studio_BaoCaoNam_${selectedYear}_ChiTietShow.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
@@ -1320,7 +1352,7 @@ export default function App() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold bg-[#f2ede6] text-[#4a4036] px-3 py-1 rounded-full border border-[#dcd2c4]">{yearlyStats.annualSummary.totalShows} Show cả năm</span>
                   <button onClick={handleExportYearlyExcel} className="bg-[#f7f4ef] border border-[#dcd2c4] hover:bg-[#e8dfd2] text-[#137333] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer">
-                    <Icons.Download className="w-4 h-4" /><span>Xuất Excel Báo Cáo Năm</span>
+                    <Icons.Download className="w-4 h-4" /><span>Xuất Excel Báo Cáo Năm (Kèm Chi Tiết Show)</span>
                   </button>
                 </div>
               </div>
