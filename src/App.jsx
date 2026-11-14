@@ -20,7 +20,6 @@ const db = getFirestore(app);
 const GOOGLE_CLIENT_ID = "83206256640-mdhtk892f3vimvegdfm2jgm63ebp0a1r.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/calendar.events";
 
-// ĐÃ SỬA: Dùng Intl.DateTimeFormat để ép chuẩn xác múi giờ Việt Nam (Asia/Ho_Chi_Minh)
 const getVietnamTodayStr = () => {
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -28,7 +27,7 @@ const getVietnamTodayStr = () => {
     month: '2-digit',
     day: '2-digit'
   });
-  return formatter.format(new Date()); // Trả về định dạng chuẩn YYYY-MM-DD
+  return formatter.format(new Date());
 };
 
 const Icons = {
@@ -567,7 +566,8 @@ export default function App() {
   const yearlyStats = useMemo(() => {
     const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => {
       const monthNum = i + 1;
-      let revenue = 0, expenses = 0, staffPayExpenses = 0, otherExpenses = 0, count = 0, makeupRevenue = 0, photoRevenue = 0;
+      let revenue = 0, expenses = 0, staffPayExpenses = 0, otherExpenses = 0, count = 0;
+      let makeupRevenue = 0, makeupExpenses = 0, photoRevenue = 0, photoExpenses = 0;
       const staffEarnings = {}, staffShowCounts = {};
 
       shows.forEach((s) => {
@@ -581,13 +581,20 @@ export default function App() {
           
           const sPay = calculateShowStaffPay(s);
           const oExp = calculateShowOtherExpenses(s);
+          const sExp = sPay + oExp;
+
           staffPayExpenses += sPay;
           otherExpenses += oExp;
-          expenses += (sPay + oExp);
+          expenses += sExp;
           count++;
 
-          if (s.packageType === 'Makeup') makeupRevenue += totalAmt;
-          else photoRevenue += totalAmt;
+          if (s.packageType === 'Makeup') {
+            makeupRevenue += totalAmt;
+            makeupExpenses += sExp;
+          } else {
+            photoRevenue += totalAmt;
+            photoExpenses += sExp;
+          }
 
           const crewList = getNormalizeCrewList(s.assignedStaff);
           crewList.forEach((c) => {
@@ -599,7 +606,16 @@ export default function App() {
         }
       });
 
-      return { month: monthNum, revenue, expenses, staffPayExpenses, otherExpenses, profit: revenue - expenses, count, makeupRevenue, photoRevenue, staffEarnings, staffShowCounts };
+      const photoProfit = photoRevenue - photoExpenses;
+      const makeupProfit = makeupRevenue - makeupExpenses;
+
+      return { 
+        month: monthNum, revenue, expenses, staffPayExpenses, otherExpenses, 
+        profit: revenue - expenses, count, 
+        photoRevenue, photoExpenses, photoProfit, 
+        makeupRevenue, makeupExpenses, makeupProfit, 
+        staffEarnings, staffShowCounts 
+      };
     });
 
     const annualSummary = monthlyBreakdown.reduce(
@@ -621,10 +637,10 @@ export default function App() {
     try {
       let csvContent = "\uFEFF";
       csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
-      csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Doanh Thu Chụp Ảnh,Doanh Thu Makeup\n`;
+      csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Lợi Nhuận Chụp Ảnh,Lợi Nhuận Makeup\n`;
 
       yearlyStats.monthlyBreakdown.forEach((item) => {
-        csvContent += `Tháng ${item.month},${item.count},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoRevenue},${item.makeupRevenue}\n`;
+        csvContent += `Tháng ${item.month},${item.count},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoProfit},${item.makeupProfit}\n`;
       });
 
       csvContent += `\nTỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n`;
@@ -1328,7 +1344,7 @@ export default function App() {
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-6 shadow-2xs space-y-4">
               <div>
                 <h3 className="text-sm font-bold text-[#1c1815]">Chi Tiết Theo Từng Tháng</h3>
-                <p className="text-xs text-[#635950] font-medium">Bấm vào từng tháng để xem chi tiết</p>
+                <p className="text-xs text-[#635950] font-medium">Bấm vào từng tháng để xem chi tiết lợi nhuận dịch vụ</p>
               </div>
 
               <div className="space-y-3">
@@ -1360,13 +1376,21 @@ export default function App() {
                       {isExpanded && (
                         <div className="border-t border-[#e6dfd5] p-4 space-y-4 bg-[#f7f4ef]/40 text-xs">
                           <div className="space-y-2">
-                            <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Phân Bổ Doanh Thu Tháng {item.month}</span>
+                            <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Lợi Nhuận Theo Mảng Dịch Vụ Tháng {item.month}</span>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                               <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex justify-between items-center">
-                                <span className="font-bold text-[#4a4036]">Doanh thu Chụp Ảnh</span><span className="font-bold text-[#1c1815] text-sm">{formatCurrency(item.photoRevenue)}</span>
+                                <div>
+                                  <span className="font-bold text-[#4a4036] block">Lợi Nhuận Chụp Ảnh</span>
+                                  <span className="text-[10px] text-[#635950]">Doanh thu: {formatCurrencyCompact(item.photoRevenue)}</span>
+                                </div>
+                                <span className="font-bold text-[#137333] text-sm">{formatCurrency(item.photoProfit)}</span>
                               </div>
                               <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex justify-between items-center">
-                                <span className="font-bold text-[#4a4036]">Doanh thu Makeup</span><span className="font-bold text-[#1c1815] text-sm">{formatCurrency(item.makeupRevenue)}</span>
+                                <div>
+                                  <span className="font-bold text-[#4a4036] block">Lợi Nhuận Makeup</span>
+                                  <span className="text-[10px] text-[#635950]">Doanh thu: {formatCurrencyCompact(item.makeupRevenue)}</span>
+                                </div>
+                                <span className="font-bold text-[#137333] text-sm">{formatCurrency(item.makeupProfit)}</span>
                               </div>
                             </div>
                           </div>
