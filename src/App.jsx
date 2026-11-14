@@ -1023,6 +1023,28 @@ export default function App() {
     }
   };
 
+  // Phân chia nhân sự thành 2 nhóm Media và Makeup
+  const mediaStaffList = useMemo(() => {
+    return staffList.filter(st => {
+      const r = (st.role || '').toLowerCase();
+      return r.includes('photo') || r.includes('quay') || r.includes('film') || r.includes('media');
+    });
+  }, [staffList]);
+
+  const makeupStaffList = useMemo(() => {
+    return staffList.filter(st => {
+      const r = (st.role || '').toLowerCase();
+      return r.includes('makeup') || r.includes('tóc') || r.includes('hair') || r.includes('trang điểm');
+    });
+  }, [staffList]);
+
+  // Các nhân sự còn lại không nằm trong 2 nhóm trên (nếu có, ví dụ Freelance chung)
+  const otherStaffList = useMemo(() => {
+    const mediaIds = new Set(mediaStaffList.map(s => s.id));
+    const makeupIds = new Set(makeupStaffList.map(s => s.id));
+    return staffList.filter(st => !mediaIds.has(st.id) && !makeupIds.has(st.id));
+  }, [staffList, mediaStaffList, makeupStaffList]);
+
   return (
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
       {/* Top Header & Sticky Navigation Bar */}
@@ -1468,63 +1490,132 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: STAFF MANAGEMENT */}
+        {/* TAB 4: STAFF MANAGEMENT (GROUPED INTO MEDIA & MAKEUP) */}
         {activeTab === 'staff' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-4">
-              <div className="flex justify-between items-center border-b border-[#e6dfd5] pb-3">
-                <div>
-                  <h2 className="text-base font-bold text-[#1c1815]">Đội Ngũ Nhân Sự</h2>
-                  <p className="text-xs text-[#635950] font-medium">Bấm vào tên nhân sự để xem lịch chụp và lương năm {selectedYear}</p>
-                </div>
-                <button onClick={() => handleOpenStaffModal(null)} className="bg-[#f7f4ef] border border-[#dcd2c4] text-[#1c1815] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-[#e8dfd2] transition">
-                  <Icons.Plus className="w-4 h-4 text-[#635950]" /> Thêm Nhân Sự
-                </button>
+          <div className="space-y-4">
+            <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-2xs flex justify-between items-center">
+              <div>
+                <h2 className="text-base font-bold text-[#1c1815]">Đội Ngũ Nhân Sự Studio</h2>
+                <p className="text-xs text-[#635950] font-medium">Phân chia theo bộ phận Media và Makeup để dễ dàng quản lý</p>
               </div>
+              <button onClick={() => handleOpenStaffModal(null)} className="bg-[#2c2621] text-[#f9f6f0] hover:bg-[#4a4036] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                <Icons.Plus className="w-4 h-4 text-[#dcd2c4]" /> Thêm Nhân Sự Mới
+              </button>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {staffList.map((st) => (
-                  <div key={st.id} className="bg-[#f7f4ef]/50 p-3 rounded-lg border border-[#e6dfd5] flex justify-between items-center transition group hover:border-[#b5a799]">
-                    <div className="flex-1 pr-2">
-                      <div className="flex items-center gap-2">
-                        <h4 onClick={() => setSelectedStaffForModal(st)} className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5 cursor-pointer">
-                          <span>👤</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
-                        </h4>
-                      </div>
-                      <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
-                      <p className="text-[11px] text-[#635950] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      {st.phone ? (
-                        <a
-                          href={`tel:${st.phone}`}
-                          className="p-1.5 hover:bg-[#e6f4ea] rounded-lg text-[#137333] border border-[#ceead6] transition"
-                          title={`Gọi cho ${st.name}`}
-                        >
-                          <Icons.Phone className="w-4 h-4" />
-                        </a>
-                      ) : (
-                        <span className="p-1.5 text-[#a89f91] opacity-50 cursor-not-allowed" title="Chưa có SĐT">
-                          <Icons.Phone className="w-4 h-4" />
-                        </span>
-                      )}
-                      <button onClick={() => handleOpenStaffModal(st)} className="p-1.5 hover:bg-[#ffffff] rounded-lg text-[#635950] border border-[#dcd2c4]" title="Sửa thông tin"><Icons.Edit className="w-4 h-4" /></button>
-                      <button onClick={() => handleDeleteStaff(st.id)} className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-700 border border-rose-200" title="Xóa"><Icons.Trash2 className="w-4 h-4" /></button>
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* NHÓM 1: MEDIA & QUAY CHỤP */}
+              <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-2xs space-y-3">
+                <div className="flex justify-between items-center border-b border-[#e6dfd5] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#1d4ed8]"></span>
+                    <h3 className="font-bold text-xs uppercase tracking-wider text-[#1c1815]">Bộ Phận Media & Quay Chụp</h3>
                   </div>
-                ))}
+                  <span className="text-[10px] font-semibold bg-[#f2ede6] text-[#4a4036] px-2.5 py-0.5 rounded-full border border-[#dcd2c4]">{mediaStaffList.length} nhân sự</span>
+                </div>
+
+                {mediaStaffList.length === 0 ? (
+                  <p className="text-xs text-[#a89f91] italic py-4 text-center">Chưa có nhân sự nào trong bộ phận này.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {mediaStaffList.map((st) => (
+                      <div key={st.id} className="bg-[#f7f4ef]/50 p-3 rounded-lg border border-[#e6dfd5] flex justify-between items-center transition group hover:border-[#b5a799]">
+                        <div className="flex-1 pr-2">
+                          <div className="flex items-center gap-2">
+                            <h4 onClick={() => setSelectedStaffForModal(st)} className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5 cursor-pointer">
+                              <span>📷</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
+                            </h4>
+                          </div>
+                          <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
+                          <p className="text-[11px] text-[#635950] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {st.phone ? (
+                            <a href={`tel:${st.phone}`} className="p-1.5 hover:bg-[#e6f4ea] rounded-lg text-[#137333] border border-[#ceead6] transition" title={`Gọi cho ${st.name}`}>
+                              <Icons.Phone className="w-4 h-4" />
+                            </a>
+                          ) : (
+                            <span className="p-1.5 text-[#a89f91] opacity-50 cursor-not-allowed" title="Chưa có SĐT"><Icons.Phone className="w-4 h-4" /></span>
+                          )}
+                          <button onClick={() => handleOpenStaffModal(st)} className="p-1.5 hover:bg-[#ffffff] rounded-lg text-[#635950] border border-[#dcd2c4]" title="Sửa"><Icons.Edit className="w-4 h-4" /></button>
+                          <button onClick={() => handleDeleteStaff(st.id)} className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-700 border border-rose-200" title="Xóa"><Icons.Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* NHÓM 2: MAKEUP & LÀM TÓC */}
+              <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-2xs space-y-3">
+                <div className="flex justify-between items-center border-b border-[#e6dfd5] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#9f1239]"></span>
+                    <h3 className="font-bold text-xs uppercase tracking-wider text-[#1c1815]">Bộ Phận Makeup & Làm Tóc</h3>
+                  </div>
+                  <span className="text-[10px] font-semibold bg-[#f2ede6] text-[#4a4036] px-2.5 py-0.5 rounded-full border border-[#dcd2c4]">{makeupStaffList.length} nhân sự</span>
+                </div>
+
+                {makeupStaffList.length === 0 ? (
+                  <p className="text-xs text-[#a89f91] italic py-4 text-center">Chưa có nhân sự nào trong bộ phận này.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {makeupStaffList.map((st) => (
+                      <div key={st.id} className="bg-[#f7f4ef]/50 p-3 rounded-lg border border-[#e6dfd5] flex justify-between items-center transition group hover:border-[#b5a799]">
+                        <div className="flex-1 pr-2">
+                          <div className="flex items-center gap-2">
+                            <h4 onClick={() => setSelectedStaffForModal(st)} className="font-bold text-xs text-[#1c1815] group-hover:text-[#137333] transition flex items-center gap-1.5 cursor-pointer">
+                              <span>💄</span> {st.name} <span className="text-[10px] text-[#137333] font-normal">(Xem lịch & lương ➔)</span>
+                            </h4>
+                          </div>
+                          <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
+                          <p className="text-[11px] text-[#635950] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {st.phone ? (
+                            <a href={`tel:${st.phone}`} className="p-1.5 hover:bg-[#e6f4ea] rounded-lg text-[#137333] border border-[#ceead6] transition" title={`Gọi cho ${st.name}`}>
+                              <Icons.Phone className="w-4 h-4" />
+                            </a>
+                          ) : (
+                            <span className="p-1.5 text-[#a89f91] opacity-50 cursor-not-allowed" title="Chưa có SĐT"><Icons.Phone className="w-4 h-4" /></span>
+                          )}
+                          <button onClick={() => handleOpenStaffModal(st)} className="p-1.5 hover:bg-[#ffffff] rounded-lg text-[#635950] border border-[#dcd2c4]" title="Sửa"><Icons.Edit className="w-4 h-4" /></button>
+                          <button onClick={() => handleDeleteStaff(st.id)} className="p-1.5 hover:bg-rose-50 rounded-lg text-rose-700 border border-rose-200" title="Xóa"><Icons.Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-5 shadow-2xs space-y-3">
-              <h3 className="font-bold text-xs uppercase text-[#635950]">Ghi chú vận hành</h3>
-              <p className="text-xs text-[#4a4036] leading-relaxed">
-                - Bấm phím **ESC** trên bàn phím bất cứ lúc nào để đóng nhanh các cửa sổ pop-up.<br/>
-                - Icon hình điện thoại nhỏ cạnh nút sửa/xóa sẽ giúp gọi điện nhanh cho nhân sự.<br/>
-                - Thao tác thêm hoặc xóa lịch trên điện thoại sẽ tự động đồng bộ ngay lập tức sang Google Calendar.
-              </p>
-            </div>
+            {/* NHÂN SỰ KHÁC (NẾU CÓ) */}
+            {otherStaffList.length > 0 && (
+              <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-2xs space-y-3">
+                <div className="flex justify-between items-center border-b border-[#e6dfd5] pb-2.5">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-[#635950]">Bộ Phận Khác / Freelance Hỗ Trợ</h3>
+                  <span className="text-[10px] font-semibold bg-[#f2ede6] text-[#4a4036] px-2.5 py-0.5 rounded-full border border-[#dcd2c4]">{otherStaffList.length} nhân sự</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {otherStaffList.map((st) => (
+                    <div key={st.id} className="bg-[#f7f4ef]/50 p-3 rounded-lg border border-[#e6dfd5] flex justify-between items-center">
+                      <div className="flex-1 pr-2">
+                        <h4 onClick={() => setSelectedStaffForModal(st)} className="font-bold text-xs text-[#1c1815] cursor-pointer hover:underline">👤 {st.name}</h4>
+                        <span className="text-[10px] font-semibold bg-[#ffffff] text-[#4a4036] px-2 py-0.5 rounded-md mt-1 inline-block border border-[#dcd2c4]">{st.role}</span>
+                        <p className="text-[11px] text-[#635950] mt-1">SĐT: {st.phone || 'Chưa có'}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {st.phone && <a href={`tel:${st.phone}`} className="p-1.5 text-[#137333]"><Icons.Phone className="w-4 h-4" /></a>}
+                        <button onClick={() => handleOpenStaffModal(st)} className="p-1.5 text-[#635950]"><Icons.Edit className="w-4 h-4" /></button>
+                        <button onClick={() => handleDeleteStaff(st.id)} className="p-1.5 text-rose-700"><Icons.Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
