@@ -1023,6 +1023,16 @@ export default function App() {
     }
   };
 
+  // Trả về nhãn trạng thái ngắn gọn hoặc badge cho calendar
+  const renderCalendarStatusIndicator = (status) => {
+    switch (status) {
+      case 'Chưa cọc': return <span className="text-[8px] px-1.5 py-0.2 bg-[#f0eae1] text-[#7a6e62] rounded font-semibold border border-[#dcd2c4]">Chưa cọc</span>;
+      case 'Đã cọc': return <span className="text-[8px] px-1.5 py-0.2 bg-[#e8dfd2] text-[#4a4036] rounded font-semibold border border-[#d0c4b4]">Đã cọc</span>;
+      case 'Đã thanh toán': return <span className="text-[8px] px-1.5 py-0.2 bg-[#e6f4ea] text-[#137333] rounded font-semibold border border-[#ceead6]">Đã thanh toán</span>;
+      default: return null;
+    }
+  };
+
   // Phân chia nhân sự thành 2 nhóm Media và Makeup
   const mediaStaffList = useMemo(() => {
     return staffList.filter(st => {
@@ -1240,7 +1250,7 @@ export default function App() {
                   const isToday = cell.dateStr === todayStr;
 
                   return (
-                    <div key={idx} onClick={() => { if (cell.dateStr) { setSelectedCalendarDay({ dateStr: cell.dateStr, shows: cell.shows, singleShowMode: cell.shows.length === 1 }); } }} className={`min-h-[90px] sm:min-h-[120px] p-1 border-r border-b border-[#e6dfd5] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#ffffff] hover:bg-[#fcfbf9] font-normal' : 'bg-[#f7f4ef]/60'} cursor-pointer`}>
+                    <div key={idx} onClick={() => { if (cell.dateStr) { setSelectedCalendarDay({ dateStr: cell.dateStr, shows: cell.shows, singleShowMode: cell.shows.length === 1 }); } }} className={`min-h-[105px] sm:min-h-[135px] p-1 border-r border-b border-[#e6dfd5] flex flex-col justify-start transition ${cell.isCurrentMonth ? 'bg-[#ffffff] hover:bg-[#fcfbf9] font-normal' : 'bg-[#f7f4ef]/60'} cursor-pointer`}>
                       <div className="flex justify-center sm:justify-start mb-1">
                         <span className={`w-5 h-5 sm:w-5.5 sm:h-5.5 flex items-center justify-center rounded-full text-[11px] sm:text-xs font-medium ${isToday ? 'bg-[#2c2621] text-[#f9f6f0] font-bold shadow-2xs' : cell.isCurrentMonth ? 'text-[#1c1815]' : 'text-[#a89f91]'}`}>{cell.dayNum}</span>
                       </div>
@@ -1256,11 +1266,18 @@ export default function App() {
                           const isEndDate = show.endDate === cell.dateStr;
 
                           return (
-                            <div key={show.id} className={`px-1.5 py-1 text-[9px] sm:text-[10px] leading-tight ${bgStyle} ${hasMultiDays ? (isStartDate ? 'rounded-l-md ml-0.5' : isEndDate ? 'rounded-r-md mr-0.5' : 'rounded-none mx-[-4px]') : 'rounded-md'}`} title={`${show.clientName} (${show.packageType})`}>
+                            <div key={show.id} className={`px-1.5 py-1 text-[9px] sm:text-[10px] leading-tight ${bgStyle} ${hasMultiDays ? (isStartDate ? 'rounded-l-md ml-0.5' : isEndDate ? 'rounded-r-md mr-0.5' : 'rounded-none mx-[-4px]') : 'rounded-md'} space-y-0.5`} title={`${show.clientName} (${show.packageType}) - ${show.status || 'Chưa cọc'}`}>
                               {isStartDate || !hasMultiDays ? (
                                 <>
-                                  <div className="font-bold uppercase tracking-tighter opacity-95 break-words">{show.packageType} {hasMultiDays && `(Ngày đầu)`}</div>
+                                  <div className="font-bold uppercase tracking-tighter opacity-95 break-words flex items-center justify-between gap-1">
+                                    <span>{show.packageType} {hasMultiDays && `(Ngày đầu)`}</span>
+                                  </div>
                                   <div className="font-medium break-words whitespace-normal">{show.clientName}</div>
+                                  {!isNonCommercialPackage(show.packageType) && (
+                                    <div className="pt-0.5">
+                                      {renderCalendarStatusIndicator(show.status)}
+                                    </div>
+                                  )}
                                 </>
                               ) : (
                                 <div className="text-center opacity-85 font-bold truncate">{isEndDate ? '➔ Hết' : '...'}</div>
@@ -1975,9 +1992,10 @@ export default function App() {
                     <div key={show.id} className="bg-[#f7f4ef]/50 p-3.5 rounded-xl border border-[#e6dfd5] space-y-3">
                       <div className="flex justify-between items-start gap-2 border-b border-[#e6dfd5] pb-2">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-bold text-sm text-[#1c1815]">{show.clientName}</h4>
                             <span className="text-[10px] font-bold bg-[#ffffff] border border-[#dcd2c4] text-[#1c1815] px-2 py-0.5 rounded-md">{show.packageType}</span>
+                            {!isNonComm && renderStatusBadge(show.status)}
                           </div>
                           {!isOff && <p className="text-xs text-[#635950] font-medium mt-0.5">📞 SĐT: {show.clientPhone || 'Chưa có'}</p>}
                           <p className="text-xs text-[#4a4036] font-medium mt-0.5">📅 Thời gian: {dateText}</p>
@@ -2201,17 +2219,17 @@ export default function App() {
                     .map(c => `+ ${c.role}: ${c.name}`)
                     .join('\n');
 
-                  text = `[OUR JUNE STUDIO] LỊCH PHÂN CÔNG EKIP CHỤP\n` +
-                         `----------------------------------------\n` +
-                         `- Gói / Show: ${show.packageType}\n` +
-                         `- Khách hàng: ${show.clientName} (SĐT: ${show.clientPhone || 'Chưa có'})\n` +
-                         `- Ngày: ${dateStrText}\n` +
-                         `- Khung giờ: ${show.startTime || '08:00'} - {show.endTime || '12:00'}\n` +
-                         `- Địa điểm: ${show.location || 'Tại Studio'}\n` +
-                         `- Ekip phụ trách:\n${crewText || 'Chưa phân công'}\n` +
-                         `- Ghi chú: ${show.notes || 'Không có'}\n` +
-                         `----------------------------------------\n` +
-                         `Mọi người chú ý thời gian chuẩn bị nhé!`;
+                    text = `[OUR JUNE STUDIO] LỊCH PHÂN CÔNG EKIP CHỤP\n` +
+                           `----------------------------------------\n` +
+                           `- Gói / Show: ${show.packageType}\n` +
+                           `- Khách hàng: ${show.clientName} (SĐT: ${show.clientPhone || 'Chưa có'})\n` +
+                           `- Ngày: ${dateStrText}\n` +
+                           `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
+                           `- Địa điểm: ${show.location || 'Tại Studio'}\n` +
+                           `- Ekip phụ trách:\n${crewText || 'Chưa phân công'}\n` +
+                           `- Ghi chú: ${show.notes || 'Không có'}\n` +
+                           `----------------------------------------\n` +
+                           `Mọi người chú ý thời gian chuẩn bị nhé!`;
                 }
 
                 if (navigator.clipboard && navigator.clipboard.writeText) {
