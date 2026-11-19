@@ -1025,7 +1025,7 @@ export default function App() {
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-24 selection:bg-[#e0d6c8]">
       {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
-        <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
+        <div className="max-w-7xl mx-auto px-3 py-2 flex flex-col gap-1.5">
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -1117,6 +1117,54 @@ export default function App() {
               </a>
             </div>
 
+            {/* Nút điều hướng thời gian nhanh ghim cố định ngay dưới khối Báo giá / Album / Web chính / Film */}
+            <div className="pt-1 border-t border-[#e6dfd5] flex items-center justify-between gap-2">
+              {(activeTab === 'calendar' || activeTab === 'list') ? (
+                <div className="flex-1 flex items-center justify-between bg-[#ffffff] px-2 py-1 rounded-lg border border-[#dcd2c4]">
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    className="p-1 rounded-md hover:bg-[#f2ede6] text-[#4a4036] transition"
+                    title="Tháng trước"
+                  >
+                    <Icons.ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-bold text-[#1c1815] text-center select-none">
+                    Tháng {selectedMonth} / {selectedYear}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    className="p-1 rounded-md hover:bg-[#f2ede6] text-[#4a4036] transition"
+                    title="Tháng sau"
+                  >
+                    <Icons.ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-between bg-[#ffffff] px-2 py-1 rounded-lg border border-[#dcd2c4]">
+                  <button
+                    type="button"
+                    onClick={handlePrevYear}
+                    className="p-1 rounded-md hover:bg-[#f2ede6] text-[#4a4036] transition"
+                    title="Năm trước"
+                  >
+                    <Icons.ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-bold text-[#1c1815] text-center select-none">
+                    Năm {selectedYear}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNextYear}
+                    className="p-1 rounded-md hover:bg-[#f2ede6] text-[#4a4036] transition"
+                    title="Năm sau"
+                  >
+                    <Icons.ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
         </div>
@@ -1164,13 +1212,7 @@ export default function App() {
         {activeTab === 'calendar' && (
           <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 sm:p-4 shadow-2xs space-y-3">
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
-              <div className="flex items-center justify-between sm:justify-start gap-2">
-                <div className="flex items-center gap-1">
-                  <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-[#f2ede6] text-[#635950] transition"><Icons.ChevronLeft className="w-4 h-4" /></button>
-                  <h2 className="text-sm font-bold text-[#1c1815] min-w-[110px] text-center">Tháng {selectedMonth} / {selectedYear}</h2>
-                  <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-[#f2ede6] text-[#635950] transition"><Icons.ChevronRight className="w-4 h-4" /></button>
-                </div>
-              </div>
+              <h2 className="text-sm font-bold text-[#1c1815]">Tháng {selectedMonth} / {selectedYear}</h2>
 
               <div className="hidden sm:flex items-center gap-3 text-xs font-normal text-[#635950] flex-wrap">
                 <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-600"></span> Ngày nghỉ</span>
@@ -1239,30 +1281,18 @@ export default function App() {
         {/* TAB 2: SHOW LIST VIEW */}
         {activeTab === 'list' && (
           <div className="space-y-3">
-            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
-              <div className="flex items-center justify-between sm:justify-start gap-2 bg-[#f7f4ef] px-3 py-1.5 rounded-lg border border-[#dcd2c4] self-start sm:self-auto">
-                <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Tháng trước">
-                  <Icons.ChevronLeft className="w-4 h-4" />
-                </button>
-                <h2 className="text-xs font-bold text-[#1c1815] min-w-[110px] text-center">Tháng {selectedMonth} / {selectedYear}</h2>
-                <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Tháng sau">
-                  <Icons.ChevronRight className="w-4 h-4" />
-                </button>
+            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-2 flex-1 justify-end">
+              <div className="relative flex-1 max-w-md">
+                <Icons.Search className="w-4 h-4 absolute left-3 top-2.5 text-[#635950]" />
+                <input type="text" placeholder="Tìm kiếm theo tên khách, gói chụp, địa điểm..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '16px' }} className="w-full pl-9 pr-3 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-medium focus:outline-none text-[#1c1815]" />
               </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 flex-1 justify-end">
-                <div className="relative flex-1 max-w-md">
-                  <Icons.Search className="w-4 h-4 absolute left-3 top-2.5 text-[#635950]" />
-                  <input type="text" placeholder="Tìm kiếm theo tên khách, gói chụp, địa điểm..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '16px' }} className="w-full pl-9 pr-3 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-medium focus:outline-none text-[#1c1815]" />
-                </div>
-                <div>
-                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ fontSize: '16px' }} className="w-full sm:w-auto px-2.5 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-semibold text-[#635950] focus:outline-none">
-                    <option value="All" className="bg-[#ffffff] text-[#2c2621]">Tất cả trạng thái</option>
-                    <option value="Chưa cọc" className="bg-[#ffffff] text-[#2c2621]">Chưa cọc</option>
-                    <option value="Đã cọc" className="bg-[#ffffff] text-[#2c2621]">Đã cọc</option>
-                    <option value="Đã thanh toán" className="bg-[#ffffff] text-[#2c2621]">Đã thanh toán</option>
-                  </select>
-                </div>
+              <div>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ fontSize: '16px' }} className="w-full sm:w-auto px-2.5 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-semibold text-[#635950] focus:outline-none">
+                  <option value="All" className="bg-[#ffffff] text-[#2c2621]">Tất cả trạng thái</option>
+                  <option value="Chưa cọc" className="bg-[#ffffff] text-[#2c2621]">Chưa cọc</option>
+                  <option value="Đã cọc" className="bg-[#ffffff] text-[#2c2621]">Đã cọc</option>
+                  <option value="Đã thanh toán" className="bg-[#ffffff] text-[#2c2621]">Đã thanh toán</option>
+                </select>
               </div>
             </div>
 
@@ -1349,20 +1379,9 @@ export default function App() {
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-lg space-y-3">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#e6dfd5] pb-3">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                  <div className="flex items-center gap-1 bg-[#f7f4ef] px-2.5 py-1 rounded-lg border border-[#dcd2c4] self-start">
-                    <button onClick={handlePrevYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm trước">
-                      <Icons.ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <span className="text-xs font-bold text-[#1c1815] min-w-[92px] text-center">Năm {selectedYear}</span>
-                    <button onClick={handleNextYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm sau">
-                      <Icons.ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-[#1c1815]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
-                    <p className="text-xs text-[#635950]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
-                  </div>
+                <div>
+                  <h2 className="text-base font-bold text-[#1c1815]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
+                  <p className="text-xs text-[#635950]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold bg-[#f2ede6] text-[#4a4036] px-3 py-1 rounded-full border border-[#dcd2c4]">{yearlyStats.annualSummary.totalShows} Show cả năm</span>
@@ -1472,20 +1491,9 @@ export default function App() {
         {activeTab === 'staff' && (
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
-                <div className="flex items-center gap-1 bg-[#f7f4ef] px-2.5 py-1 rounded-lg border border-[#dcd2c4] self-start">
-                  <button onClick={handlePrevYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm trước">
-                    <Icons.ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <span className="text-xs font-bold text-[#1c1815] min-w-[92px] text-center">Năm {selectedYear}</span>
-                  <button onClick={handleNextYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm sau">
-                    <Icons.ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-[#1c1815]">Đội Ngũ Nhân Sự Studio</h2>
-                  <p className="text-xs text-[#635950] font-medium">Phân chia theo bộ phận Media và Makeup để dễ dàng quản lý</p>
-                </div>
+              <div>
+                <h2 className="text-base font-bold text-[#1c1815]">Đội Ngũ Nhân Sự Studio</h2>
+                <p className="text-xs text-[#635950] font-medium">Phân chia theo bộ phận Media và Makeup để dễ dàng quản lý</p>
               </div>
               <button onClick={() => handleOpenStaffModal(null)} className="bg-[#2c2621] text-[#f9f6f0] hover:bg-[#4a4036] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition self-end sm:self-auto">
                 <Icons.Plus className="w-4 h-4 text-[#dcd2c4]" /> Thêm Nhân Sự Mới
