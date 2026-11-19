@@ -1023,7 +1023,6 @@ export default function App() {
     }
   };
 
-  // Trả về nhãn trạng thái ngắn gọn hoặc badge cho calendar
   const renderCalendarStatusIndicator = (status) => {
     switch (status) {
       case 'Chưa cọc': return <span className="text-[8px] px-1.5 py-0.2 bg-[#f0eae1] text-[#7a6e62] rounded font-semibold border border-[#dcd2c4]">Chưa cọc</span>;
@@ -1048,7 +1047,6 @@ export default function App() {
     });
   }, [staffList]);
 
-  // Các nhân sự còn lại không nằm trong 2 nhóm trên (nếu có, ví dụ Freelance chung)
   const otherStaffList = useMemo(() => {
     const mediaIds = new Set(mediaStaffList.map(s => s.id));
     const makeupIds = new Set(makeupStaffList.map(s => s.id));
@@ -1301,18 +1299,30 @@ export default function App() {
         {/* TAB 2: SHOW LIST VIEW */}
         {activeTab === 'list' && (
           <div className="space-y-3">
-            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-2 justify-between">
-              <div className="relative flex-1">
-                <Icons.Search className="w-4 h-4 absolute left-3 top-2.5 text-[#635950]" />
-                <input type="text" placeholder="Tìm kiếm theo tên khách, gói chụp, địa điểm..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '16px' }} className="w-full pl-9 pr-3 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-medium focus:outline-none text-[#1c1815]" />
+            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
+              <div className="flex items-center justify-between sm:justify-start gap-2 bg-[#f7f4ef] px-3 py-1.5 rounded-lg border border-[#dcd2c4] self-start sm:self-auto">
+                <button onClick={handlePrevMonth} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Tháng trước">
+                  <Icons.ChevronLeft className="w-4 h-4" />
+                </button>
+                <h2 className="text-xs font-bold text-[#1c1815] min-w-[110px] text-center">Tháng {selectedMonth} / {selectedYear}</h2>
+                <button onClick={handleNextMonth} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Tháng sau">
+                  <Icons.ChevronRight className="w-4 h-4" />
+                </button>
               </div>
-              <div className="flex gap-2">
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ fontSize: '16px' }} className="w-full sm:w-auto px-2.5 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-semibold text-[#635950] focus:outline-none">
-                  <option value="All" className="bg-[#ffffff] text-[#2c2621]">Tất cả trạng thái</option>
-                  <option value="Chưa cọc" className="bg-[#ffffff] text-[#2c2621]">Chưa cọc</option>
-                  <option value="Đã cọc" className="bg-[#ffffff] text-[#2c2621]">Đã cọc</option>
-                  <option value="Đã thanh toán" className="bg-[#ffffff] text-[#2c2621]">Đã thanh toán</option>
-                </select>
+
+              <div className="flex flex-col sm:flex-row gap-2 flex-1 justify-end">
+                <div className="relative flex-1 max-w-md">
+                  <Icons.Search className="w-4 h-4 absolute left-3 top-2.5 text-[#635950]" />
+                  <input type="text" placeholder="Tìm kiếm theo tên khách, gói chụp, địa điểm..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ fontSize: '16px' }} className="w-full pl-9 pr-3 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-medium focus:outline-none text-[#1c1815]" />
+                </div>
+                <div>
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ fontSize: '16px' }} className="w-full sm:w-auto px-2.5 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-semibold text-[#635950] focus:outline-none">
+                    <option value="All" className="bg-[#ffffff] text-[#2c2621]">Tất cả trạng thái</option>
+                    <option value="Chưa cọc" className="bg-[#ffffff] text-[#2c2621]">Chưa cọc</option>
+                    <option value="Đã cọc" className="bg-[#ffffff] text-[#2c2621]">Đã cọc</option>
+                    <option value="Đã thanh toán" className="bg-[#ffffff] text-[#2c2621]">Đã thanh toán</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -2227,7 +2237,7 @@ export default function App() {
                            `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
                            `- Địa điểm: ${show.location || 'Tại Studio'}\n` +
                            `- Ekip phụ trách:\n${crewText || 'Chưa phân công'}\n` +
-                           `- Ghi chú: ${show.notes || 'Không có'}\n` +
+                           `- Gói / Ghi chú: ${show.notes || 'Không có'}\n` +
                            `----------------------------------------\n` +
                            `Mọi người chú ý thời gian chuẩn bị nhé!`;
                 }
