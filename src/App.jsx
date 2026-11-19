@@ -76,11 +76,6 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
   ),
-  Upload: (props) => (
-    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-    </svg>
-  ),
   Search: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -817,6 +812,14 @@ export default function App() {
     else { setSelectedMonth(selectedMonth + 1); }
   };
 
+  const handlePrevYear = () => {
+    setSelectedYear((y) => y - 1);
+  };
+
+  const handleNextYear = () => {
+    setSelectedYear((y) => y + 1);
+  };
+
   const handleOpenShowModal = (showToEdit = null, defaultDate = null) => {
     setModalOriginTab(activeTab);
 
@@ -979,41 +982,6 @@ export default function App() {
     }
   };
 
-  const handleExportData = () => {
-    const dataStr = JSON.stringify({ shows, staffList }, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `OurJune_Studio_Backup_${getVietnamTodayStr()}.json`;
-    a.click();
-  };
-
-  const handleImportData = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const parsed = JSON.parse(event.target.result);
-        if (parsed.shows && parsed.staffList) {
-          for (let s of parsed.shows) {
-            const { id, ...data } = s;
-            await addDoc(collection(db, "shows"), data);
-          }
-          for (let st of parsed.staffList) {
-            const { id, ...data } = st;
-            await addDoc(collection(db, "staff"), data);
-          }
-          alert('Nhập dữ liệu thành công!');
-        }
-      } catch (err) {
-        alert('File không hợp lệ.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
   const renderStatusBadge = (status) => {
     switch (status) {
       case 'Chưa cọc': return <span className="bg-[#f0eae1] text-[#7a6e62] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#dcd2c4]">Chưa cọc</span>;
@@ -1054,7 +1022,7 @@ export default function App() {
   }, [staffList, mediaStaffList, makeupStaffList]);
 
   return (
-    <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-20 selection:bg-[#e0d6c8]">
+    <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-24 selection:bg-[#e0d6c8]">
       {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2.5 flex flex-col gap-2">
@@ -1156,65 +1124,41 @@ export default function App() {
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-2.5 sm:px-6 pt-3 space-y-3">
-        <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-3 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-[#635950] uppercase tracking-wider shrink-0">Thời gian:</span>
-            <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#2c2621] focus:outline-none flex-1 sm:flex-initial">
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (<option key={m} value={m} className="bg-[#ffffff] text-[#2c2621]">Tháng {m}</option>))}
-            </select>
-            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#2c2621] focus:outline-none flex-1 sm:flex-initial">
-              {Array.from({ length: 17 }, (_, i) => 2024 + i).map((y) => (<option key={y} value={y} className="bg-[#ffffff] text-[#2c2621]">Năm {y}</option>))}
-            </select>
-          </div>
+        {(activeTab === 'calendar' || activeTab === 'list') && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
+              <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-xl sm:text-2xl font-bold text-[#1c1815]">{monthStats.count}</span>
+                <span className="text-[10px] font-semibold bg-[#e6f4ea] text-[#137333] px-1.5 py-0.5 rounded border border-[#ceead6]">{monthStats.completedShowsCount} xong</span>
+              </div>
+            </div>
 
-          <div className="flex items-center gap-2 justify-end">
-            <button onClick={() => handleOpenShowModal()} className="bg-[#2c2621] text-[#f9f6f0] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-[#4a4036] transition">
-              <Icons.Plus className="w-4 h-4 text-[#dcd2c4]" />
-              <span>Tạo Lịch Hẹn / Show Mới</span>
-            </button>
-            <button onClick={handleExportData} title="Xuất File Sao Lưu" className="p-1.5 border border-[#dcd2c4] rounded-lg text-[#635950] hover:bg-[#f2ede6] transition">
-              <Icons.Download className="w-4 h-4" />
-            </button>
-            <label title="Nhập File Dữ Liệu" className="p-1.5 border border-[#dcd2c4] rounded-lg text-[#635950] hover:bg-[#f2ede6] transition cursor-pointer">
-              <Icons.Upload className="w-4 h-4" />
-              <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
-            </label>
-          </div>
-        </div>
+            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
+              <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Doanh Thu HĐ</span>
+              <div>
+                <span className="text-base sm:text-xl font-bold text-[#1c1815] block truncate">{formatCurrencyCompact(monthStats.totalRevenue)}</span>
+                <p className="text-[10px] text-[#635950] font-medium truncate">Còn lại: {formatCurrencyCompact(monthStats.remainingToCollect)}</p>
+              </div>
+            </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
-            <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Show T{selectedMonth}</span>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xl sm:text-2xl font-bold text-[#1c1815]">{monthStats.count}</span>
-              <span className="text-[10px] font-semibold bg-[#e6f4ea] text-[#137333] px-1.5 py-0.5 rounded border border-[#ceead6]">{monthStats.completedShowsCount} xong</span>
+            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
+              <span className="text-[11px] font-semibold text-[#a51d24] uppercase tracking-wider">Chi Phí Show</span>
+              <div>
+                <span className="text-base sm:text-xl font-bold text-[#a51d24] block truncate">{formatCurrencyCompact(monthStats.totalExpenses)}</span>
+                <p className="text-[10px] text-[#635950] font-medium truncate">Lương ekip & phát sinh</p>
+              </div>
+            </div>
+
+            <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
+              <span className="text-[11px] font-semibold text-[#137333] uppercase tracking-wider">Lợi Nhuận Ròng</span>
+              <div>
+                <span className="text-base sm:text-xl font-bold text-[#137333] block truncate">{formatCurrencyCompact(monthStats.netProfit)}</span>
+                <p className="text-[10px] text-[#635950] font-medium truncate">Doanh thu trừ Chi phí</p>
+              </div>
             </div>
           </div>
-
-          <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
-            <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Doanh Thu HĐ</span>
-            <div>
-              <span className="text-base sm:text-xl font-bold text-[#1c1815] block truncate">{formatCurrencyCompact(monthStats.totalRevenue)}</span>
-              <p className="text-[10px] text-[#635950] font-medium truncate">Còn lại: {formatCurrencyCompact(monthStats.remainingToCollect)}</p>
-            </div>
-          </div>
-
-          <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
-            <span className="text-[11px] font-semibold text-[#a51d24] uppercase tracking-wider">Chi Phí Show</span>
-            <div>
-              <span className="text-base sm:text-xl font-bold text-[#a51d24] block truncate">{formatCurrencyCompact(monthStats.totalExpenses)}</span>
-              <p className="text-[10px] text-[#635950] font-medium truncate">Lương ekip & phát sinh</p>
-            </div>
-          </div>
-
-          <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
-            <span className="text-[11px] font-semibold text-[#137333] uppercase tracking-wider">Lợi Nhuận Ròng</span>
-            <div>
-              <span className="text-base sm:text-xl font-bold text-[#137333] block truncate">{formatCurrencyCompact(monthStats.netProfit)}</span>
-              <p className="text-[10px] text-[#635950] font-medium truncate">Doanh thu trừ Chi phí</p>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* TAB 1: GOOGLE CALENDAR VIEW */}
         {activeTab === 'calendar' && (
@@ -1289,10 +1233,6 @@ export default function App() {
                 })}
               </div>
             </div>
-
-            <button onClick={() => handleOpenShowModal()} className="fixed bottom-6 right-6 z-40 bg-[#2c2621] hover:bg-[#4a4036] text-[#f9f6f0] p-3.5 rounded-2xl shadow-lg flex items-center justify-center transition-transform active:scale-95" title="Tạo lịch chụp mới">
-              <Icons.Plus className="w-5 h-5 stroke-[2.5]" />
-            </button>
           </div>
         )}
 
@@ -1409,9 +1349,20 @@ export default function App() {
           <div className="space-y-4">
             <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-lg space-y-3">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-[#e6dfd5] pb-3">
-                <div>
-                  <h2 className="text-base font-bold text-[#1c1815]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
-                  <p className="text-xs text-[#635950]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                  <div className="flex items-center gap-1 bg-[#f7f4ef] px-2.5 py-1 rounded-lg border border-[#dcd2c4] self-start">
+                    <button onClick={handlePrevYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm trước">
+                      <Icons.ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-bold text-[#1c1815] min-w-[92px] text-center">Năm {selectedYear}</span>
+                    <button onClick={handleNextYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm sau">
+                      <Icons.ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-[#1c1815]">Tổng Kết Tài Chính Cả Năm {selectedYear}</h2>
+                    <p className="text-xs text-[#635950]">Tổng hợp toàn bộ hoạt động kinh doanh trong năm</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold bg-[#f2ede6] text-[#4a4036] px-3 py-1 rounded-full border border-[#dcd2c4]">{yearlyStats.annualSummary.totalShows} Show cả năm</span>
@@ -1520,12 +1471,23 @@ export default function App() {
         {/* TAB 4: STAFF MANAGEMENT (GROUPED INTO MEDIA & MAKEUP) */}
         {activeTab === 'staff' && (
           <div className="space-y-4">
-            <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-2xs flex justify-between items-center">
-              <div>
-                <h2 className="text-base font-bold text-[#1c1815]">Đội Ngũ Nhân Sự Studio</h2>
-                <p className="text-xs text-[#635950] font-medium">Phân chia theo bộ phận Media và Makeup để dễ dàng quản lý</p>
+            <div className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                <div className="flex items-center gap-1 bg-[#f7f4ef] px-2.5 py-1 rounded-lg border border-[#dcd2c4] self-start">
+                  <button onClick={handlePrevYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm trước">
+                    <Icons.ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs font-bold text-[#1c1815] min-w-[92px] text-center">Năm {selectedYear}</span>
+                  <button onClick={handleNextYear} className="p-1 rounded-full hover:bg-[#e8dfd2] text-[#635950] transition" title="Năm sau">
+                    <Icons.ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-[#1c1815]">Đội Ngũ Nhân Sự Studio</h2>
+                  <p className="text-xs text-[#635950] font-medium">Phân chia theo bộ phận Media và Makeup để dễ dàng quản lý</p>
+                </div>
               </div>
-              <button onClick={() => handleOpenStaffModal(null)} className="bg-[#2c2621] text-[#f9f6f0] hover:bg-[#4a4036] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+              <button onClick={() => handleOpenStaffModal(null)} className="bg-[#2c2621] text-[#f9f6f0] hover:bg-[#4a4036] px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition self-end sm:self-auto">
                 <Icons.Plus className="w-4 h-4 text-[#dcd2c4]" /> Thêm Nhân Sự Mới
               </button>
             </div>
@@ -1646,6 +1608,11 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* NÚT TẠO NHANH NỔI Ở GÓC DƯỚI BÊN PHẢI */}
+      <button onClick={() => handleOpenShowModal()} className="fixed bottom-6 right-6 z-40 bg-[#2c2621] hover:bg-[#4a4036] text-[#f9f6f0] p-3.5 rounded-2xl shadow-lg flex items-center justify-center transition-transform active:scale-95" title="Tạo lịch chụp mới">
+        <Icons.Plus className="w-5 h-5 stroke-[2.5]" />
+      </button>
 
       {/* MODAL: STAFF FORM */}
       {isStaffModalOpen && (
@@ -2237,7 +2204,7 @@ export default function App() {
                            `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
                            `- Địa điểm: ${show.location || 'Tại Studio'}\n` +
                            `- Ekip phụ trách:\n${crewText || 'Chưa phân công'}\n` +
-                           `- Gói / Ghi chú: ${show.notes || 'Không có'}\n` +
+                           `- Ghi chú: ${show.notes || 'Không có'}\n` +
                            `----------------------------------------\n` +
                            `Mọi người chú ý thời gian chuẩn bị nhé!`;
                 }
