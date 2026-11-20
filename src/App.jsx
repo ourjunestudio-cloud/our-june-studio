@@ -595,7 +595,8 @@ export default function App() {
     const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => {
       const monthNum = i + 1;
       let revenue = 0, expenses = 0, staffPayExpenses = 0, otherExpenses = 0, count = 0;
-      let makeupRevenue = 0, makeupExpenses = 0, photoRevenue = 0, photoExpenses = 0;
+      let makeupRevenue = 0, makeupExpenses = 0, makeupCount = 0;
+      let photoRevenue = 0, photoExpenses = 0, photoCount = 0;
       const staffEarnings = {}, staffShowCounts = {};
       const monthShows = [];
 
@@ -620,9 +621,11 @@ export default function App() {
           if (s.packageType === 'Makeup') {
             makeupRevenue += totalAmt;
             makeupExpenses += sExp;
+            makeupCount++;
           } else {
             photoRevenue += totalAmt;
             photoExpenses += sExp;
+            photoCount++;
           }
 
           const profit = totalAmt - sExp;
@@ -650,8 +653,8 @@ export default function App() {
       return { 
         month: monthNum, revenue, expenses, staffPayExpenses, otherExpenses, 
         profit: revenue - expenses, count, 
-        photoRevenue, photoExpenses, photoProfit, 
-        makeupRevenue, makeupExpenses, makeupProfit, 
+        photoRevenue, photoExpenses, photoProfit, photoCount,
+        makeupRevenue, makeupExpenses, makeupProfit, makeupCount,
         staffEarnings, staffShowCounts,
         monthShows: monthShows.sort((a, b) => new Date(a.date) - new Date(b.date))
       };
@@ -664,9 +667,20 @@ export default function App() {
         totalStaffPay: acc.totalStaffPay + curr.staffPayExpenses,
         totalOtherExpenses: acc.totalOtherExpenses + curr.otherExpenses,
         totalProfit: acc.totalProfit + curr.profit,
-        totalShows: acc.totalShows + curr.count
+        totalShows: acc.totalShows + curr.count,
+        totalPhotoShows: acc.totalPhotoShows + curr.photoCount,
+        totalMakeupShows: acc.totalMakeupShows + curr.makeupCount
       }),
-      { totalRevenue: 0, totalExpenses: 0, totalStaffPay: 0, totalOtherExpenses: 0, totalProfit: 0, totalShows: 0 }
+      {
+        totalRevenue: 0,
+        totalExpenses: 0,
+        totalStaffPay: 0,
+        totalOtherExpenses: 0,
+        totalProfit: 0,
+        totalShows: 0,
+        totalPhotoShows: 0,
+        totalMakeupShows: 0
+      }
     );
 
     return { monthlyBreakdown, annualSummary };
@@ -678,13 +692,13 @@ export default function App() {
       csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
       
       csvContent += `--- TỔNG HỢP CÁC THÁNG TRONG NĂM ---\n`;
-      csvContent += `Tháng,Số lượng Show,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Lợi Nhuận Chụp Ảnh,Lợi Nhuận Makeup\n`;
+      csvContent += `Tháng,Số lượng Show,Số Show Chụp,Số Show Makeup,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Lợi Nhuận Chụp Ảnh,Lợi Nhuận Makeup\n`;
 
       yearlyStats.monthlyBreakdown.forEach((item) => {
-        csvContent += `Tháng ${item.month},${item.count},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoProfit},${item.makeupProfit}\n`;
+        csvContent += `Tháng ${item.month},${item.count},${item.photoCount},${item.makeupCount},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoProfit},${item.makeupProfit}\n`;
       });
 
-      csvContent += `TỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n\n\n`;
+      csvContent += `TỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalPhotoShows},${yearlyStats.annualSummary.totalMakeupShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n\n\n`;
 
       csvContent += `--- DANH SÁCH CHI TIẾT SHOW THEO TỪNG THÁNG TRONG NĂM ---\n\n`;
       
@@ -1394,6 +1408,8 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold bg-[#f2ede6] text-[#4a4036] px-3 py-1 rounded-full border border-[#dcd2c4]">{yearlyStats.annualSummary.totalShows} Show cả năm</span>
+                  <span className="text-xs font-semibold bg-emerald-50 text-emerald-900 px-3 py-1 rounded-full border border-emerald-200">{yearlyStats.annualSummary.totalPhotoShows} Show chụp</span>
+                  <span className="text-xs font-semibold bg-rose-50 text-rose-900 px-3 py-1 rounded-full border border-rose-200">{yearlyStats.annualSummary.totalMakeupShows} Show Makeup</span>
                   <button onClick={handleExportYearlyExcel} className="bg-[#f7f4ef] border border-[#dcd2c4] hover:bg-[#e8dfd2] text-[#137333] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer">
                     <Icons.Download className="w-4 h-4" /><span>Xuất Excel Báo Cáo Năm (Kèm Chi Tiết Show)</span>
                   </button>
@@ -1455,15 +1471,21 @@ export default function App() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                               <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex justify-between items-center">
                                 <div>
-                                  <span className="font-bold text-[#4a4036] block">Lợi Nhuận Chụp Ảnh</span>
-                                  <span className="text-[10px] text-[#635950]">Doanh thu: {formatCurrencyCompact(item.photoRevenue)}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-[#4a4036]">Lợi Nhuận Chụp Ảnh</span>
+                                    <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200">{item.photoCount} show</span>
+                                  </div>
+                                  <span className="text-[10px] text-[#635950] block mt-0.5">Doanh thu: {formatCurrencyCompact(item.photoRevenue)}</span>
                                 </div>
                                 <span className="font-bold text-[#137333] text-sm">{formatCurrency(item.photoProfit)}</span>
                               </div>
                               <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] flex justify-between items-center">
                                 <div>
-                                  <span className="font-bold text-[#4a4036] block">Lợi Nhuận Makeup</span>
-                                  <span className="text-[10px] text-[#635950]">Doanh thu: {formatCurrencyCompact(item.makeupRevenue)}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-[#4a4036]">Lợi Nhuận Makeup</span>
+                                    <span className="text-[10px] font-semibold bg-rose-50 text-rose-900 px-1.5 py-0.5 rounded border border-rose-200">{item.makeupCount} show</span>
+                                  </div>
+                                  <span className="text-[10px] text-[#635950] block mt-0.5">Doanh thu: {formatCurrencyCompact(item.makeupRevenue)}</span>
                                 </div>
                                 <span className="font-bold text-[#137333] text-sm">{formatCurrency(item.makeupProfit)}</span>
                               </div>
