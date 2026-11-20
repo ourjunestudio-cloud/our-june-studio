@@ -538,9 +538,16 @@ export default function App() {
         show.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
         show.packageType.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchStatus = statusFilter === 'All' || show.status === statusFilter;
+      let matchFilter = true;
+      if (statusFilter === 'Media') {
+        matchFilter = show.packageType !== 'Makeup';
+      } else if (statusFilter === 'Makeup') {
+        matchFilter = show.packageType === 'Makeup';
+      } else if (statusFilter !== 'All') {
+        matchFilter = show.status === statusFilter;
+      }
 
-      return (matchMonth || (show.endDate && new Date(show.endDate).getMonth() + 1 === selectedMonth)) && matchSearch && matchStatus;
+      return (matchMonth || (show.endDate && new Date(show.endDate).getMonth() + 1 === selectedMonth)) && matchSearch && matchFilter;
     });
 
     return filtered.sort((a, b) => {
@@ -1289,6 +1296,8 @@ export default function App() {
               <div>
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ fontSize: '16px' }} className="w-full sm:w-auto px-2.5 py-1.5 bg-[#f7f4ef] border border-[#dcd2c4] rounded-lg text-xs font-semibold text-[#635950] focus:outline-none">
                   <option value="All" className="bg-[#ffffff] text-[#2c2621]">Tất cả trạng thái</option>
+                  <option value="Media" className="bg-[#ffffff] text-[#2c2621]">Media</option>
+                  <option value="Makeup" className="bg-[#ffffff] text-[#2c2621]">Make up</option>
                   <option value="Chưa cọc" className="bg-[#ffffff] text-[#2c2621]">Chưa cọc</option>
                   <option value="Đã cọc" className="bg-[#ffffff] text-[#2c2621]">Đã cọc</option>
                   <option value="Đã thanh toán" className="bg-[#ffffff] text-[#2c2621]">Đã thanh toán</option>
@@ -1299,7 +1308,7 @@ export default function App() {
             <div className="space-y-3">
               {currentMonthShows.length === 0 ? (
                 <div className="bg-[#ffffff] p-8 rounded-xl border border-[#e6dfd5] text-center space-y-2">
-                  <p className="text-[#635950] font-medium text-xs">Chưa có show thương mại nào trong Tháng {selectedMonth}/{selectedYear}</p>
+                  <p className="text-[#635950] font-medium text-xs">Chưa có show thương mại nào phù hợp trong Tháng {selectedMonth}/{selectedYear}</p>
                   <button onClick={() => handleOpenShowModal()} className="text-xs font-semibold text-[#1c1815] hover:underline">+ Tạo lịch chụp mới ngay</button>
                 </div>
               ) : (
