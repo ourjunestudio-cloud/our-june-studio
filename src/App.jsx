@@ -152,6 +152,14 @@ export default function App() {
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
 
+  // State cho modal xác nhận trước khi xóa sự kiện trên Google Calendar
+  const [syncDeletePrompt, setSyncDeletePrompt] = useState({
+    isOpen: false,
+    candidates: [], // [{ id, summary, startStr, reason, selected }]
+    addedCount: 0,
+    isExecuting: false
+  });
+
   const checkTokenStatus = () => {
     const savedToken = localStorage.getItem('google_access_token');
     const expiresAt = localStorage.getItem('google_token_expires_at');
@@ -230,7 +238,9 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (confirmationModal.isOpen) {
+        if (syncDeletePrompt.isOpen && !syncDeletePrompt.isExecuting) {
+          setSyncDeletePrompt({ isOpen: false, candidates: [], addedCount: 0, isExecuting: false });
+        } else if (confirmationModal.isOpen) {
           setConfirmationModal({ isOpen: false, type: 'client', show: null });
         } else if (isShowModalOpen) {
           setIsShowModalOpen(false);
@@ -245,7 +255,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [confirmationModal.isOpen, isShowModalOpen, isStaffModalOpen, selectedStaffForModal, selectedCalendarDay]);
+  }, [syncDeletePrompt.isOpen, syncDeletePrompt.isExecuting, confirmationModal.isOpen, isShowModalOpen, isStaffModalOpen, selectedStaffForModal, selectedCalendarDay]);
 
   const handleConnectGoogle = () => {
     if (tokenClient) {
@@ -384,6 +394,7 @@ export default function App() {
     }
   };
 
+  // Bước 1: Quét lịch mới còn thiếu & thu thập danh sách sự kiện dự kiến xóa để người dùng xác nhận
   const handleSmartSyncWithGoogle = async () => {
     const accessToken = await getVerifiedAccessToken();
     if (!accessToken) {
@@ -398,52 +409,51 @@ export default function App() {
       const gData = await res.json();
       const googleEvents = gData.items || [];
 
-      let deletedCount = 0;
       let addedCount = 0;
+      const deleteCandidates = [];
+      const seenKeys = new Set();
 
-      const seenEvents = new Map();
       for (const gEvent of googleEvents) {
-        if (!gEvent.summary || !gEvent.start) continue;
-        const key = `${gEvent.summary}_${gEvent.start.date || gEvent.start.dateTime}`;
-        if (seenEvents.has(key)) {
-          await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gEvent.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${accessToken}` },
+        if (!gEvent.summary || !gEvent.start || gEvent.status === 'cancelled') continue;
+        const startStr = gEvent.start.date || (gEvent.start.dateTime ? gEvent.start.dateTime.slice(0, 10) : '');
+        const key = `${gEvent.summary}__${startStr}`;
+
+        if (seenKeys.has(key)) {
+          deleteCandidates.push({
+            id: gEvent.id,
+            summary: gEvent.summary,
+            startStr: startStr || 'Không rõ ngày',
+            reason: 'Lịch trùng lặp',
+            selected: true
           });
-          deletedCount++;
-        } else {
-          seenEvents.set(key, gEvent.id);
+          continue;
         }
-      }
+        seenKeys.add(key);
 
-      const resRefresh = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=2500', {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-      });
-      const gDataRefreshed = await resRefresh.json();
-      const currentGoogleEvents = gDataRefreshed.items || [];
-
-      for (const gEvent of currentGoogleEvents) {
-        if (!gEvent.summary) continue;
         const matchFound = shows.some(show => {
           const expectedSummary = `[${show.packageType}] ${show.clientName}`;
-          return gEvent.summary === expectedSummary && gEvent.start && gEvent.start.date === show.date;
+          return gEvent.summary === expectedSummary && startStr === show.date;
         });
 
         if (!matchFound) {
-          await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${gEvent.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${accessToken}` },
+          deleteCandidates.push({
+            id: gEvent.id,
+            summary: gEvent.summary,
+            startStr: startStr || 'Không rõ ngày',
+            reason: 'Không có trên danh sách web',
+            selected: true
           });
-          deletedCount++;
         }
       }
 
       for (const show of shows) {
         if (show.date) {
           const expectedSummary = `[${show.packageType}] ${show.clientName}`;
-          const alreadyExistsOnGoogle = currentGoogleEvents.some(gEvent => 
-            gEvent.summary === expectedSummary && gEvent.start && gEvent.start.date === show.date
-          );
+          const alreadyExistsOnGoogle = googleEvents.some(gEvent => {
+            if (!gEvent.summary || !gEvent.start || gEvent.status === 'cancelled') return false;
+            const gStart = gEvent.start.date || (gEvent.start.dateTime ? gEvent.start.dateTime.slice(0, 10) : '');
+            return gEvent.summary === expectedSummary && gStart === show.date;
+          });
 
           if (!alreadyExistsOnGoogle) {
             await syncShowToGoogleCalendar(show);
@@ -452,11 +462,73 @@ export default function App() {
         }
       }
 
-      alert(`Đồng bộ thông minh thành công!\n- Đã thêm mới: ${addedCount} lịch.\n- Đã dọn dẹp/xóa: ${deletedCount} lịch thừa.`);
+      if (deleteCandidates.length > 0) {
+        setSyncDeletePrompt({
+          isOpen: true,
+          candidates: deleteCandidates,
+          addedCount,
+          isExecuting: false
+        });
+      } else {
+        alert(`Đồng bộ hoàn tất!\n- Đã thêm mới: ${addedCount} lịch.\n- Không có lịch thừa nào cần xóa.`);
+      }
     } catch (err) {
       console.error("Lỗi đồng bộ thông minh:", err);
       alert("Có lỗi xảy ra khi đồng bộ với Google Calendar.");
     }
+  };
+
+  // Bước 2: Chỉ xóa các lịch người dùng đã tick chọn sau khi xác nhận
+  const handleConfirmDeleteSyncEvents = async () => {
+    const selectedItems = syncDeletePrompt.candidates.filter(item => item.selected);
+    const addedCount = syncDeletePrompt.addedCount;
+
+    if (selectedItems.length === 0) {
+      setSyncDeletePrompt({ isOpen: false, candidates: [], addedCount: 0, isExecuting: false });
+      alert(`Đã thêm mới ${addedCount} lịch. Không có lịch nào bị xóa.`);
+      return;
+    }
+
+    const accessToken = await getVerifiedAccessToken();
+    if (!accessToken) {
+      alert("Phiên kết nối Google đã hết hạn. Vui lòng kết nối lại!");
+      return;
+    }
+
+    setSyncDeletePrompt(prev => ({ ...prev, isExecuting: true }));
+    let deletedCount = 0;
+
+    try {
+      for (const item of selectedItems) {
+        const delRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${item.id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
+        if (delRes.ok || delRes.status === 404 || delRes.status === 410) {
+          deletedCount++;
+        }
+      }
+      setSyncDeletePrompt({ isOpen: false, candidates: [], addedCount: 0, isExecuting: false });
+      alert(`Đồng bộ thành công!\n- Đã thêm mới: ${addedCount} lịch.\n- Đã xóa: ${deletedCount} lịch đã chọn.`);
+    } catch (err) {
+      console.error("Lỗi khi xóa lịch đã xác nhận:", err);
+      setSyncDeletePrompt(prev => ({ ...prev, isExecuting: false }));
+      alert("Có lỗi xảy ra khi xóa một số lịch trên Google Calendar.");
+    }
+  };
+
+  const toggleSyncCandidate = (id) => {
+    setSyncDeletePrompt(prev => ({
+      ...prev,
+      candidates: prev.candidates.map(c => c.id === id ? { ...c, selected: !c.selected } : c)
+    }));
+  };
+
+  const toggleAllSyncCandidates = (nextSelected) => {
+    setSyncDeletePrompt(prev => ({
+      ...prev,
+      candidates: prev.candidates.map(c => ({ ...c, selected: nextSelected }))
+    }));
   };
 
   const [isDateRangePickerOpen, setIsDateRangePickerOpen] = useState(false);
@@ -1050,6 +1122,11 @@ export default function App() {
     return staffList.filter(st => !mediaIds.has(st.id) && !makeupIds.has(st.id));
   }, [staffList, mediaStaffList, makeupStaffList]);
 
+  const selectedSyncDeleteCount = useMemo(
+    () => syncDeletePrompt.candidates.filter(c => c.selected).length,
+    [syncDeletePrompt.candidates]
+  );
+
   return (
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-24 selection:bg-[#e0d6c8]">
       {/* Top Header & Sticky Navigation Bar */}
@@ -1079,7 +1156,7 @@ export default function App() {
                 <button
                   onClick={handleSmartSyncWithGoogle}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
-                  title="Đồng bộ thủ công: Quét toàn bộ để thêm mới, xóa lịch thừa và lọc chống trùng lặp"
+                  title="Đồng bộ thủ công: Quét thêm lịch mới và hiện danh sách xác nhận trước khi xóa lịch thừa"
                 >
                   📱 Đồng bộ Google
                 </button>
@@ -1660,6 +1737,89 @@ export default function App() {
       <button onClick={() => handleOpenShowModal()} className="fixed bottom-6 right-6 z-40 bg-[#2c2621] hover:bg-[#4a4036] text-[#f9f6f0] p-3.5 rounded-2xl shadow-lg flex items-center justify-center transition-transform active:scale-95" title="Tạo lịch chụp mới">
         <Icons.Plus className="w-5 h-5 stroke-[2.5]" />
       </button>
+
+      {/* MODAL: XÁC NHẬN TRƯỚC KHI XÓA LỊCH TRÊN GOOGLE CALENDAR */}
+      {syncDeletePrompt.isOpen && (
+        <div className="fixed inset-0 z-[70] bg-[#1c1815]/55 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
+          <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[88vh]">
+            <div className="p-4 border-b border-[#e6dfd5] flex justify-between items-center bg-[#ffffff]">
+              <div>
+                <h3 className="font-bold text-sm text-[#1c1815]">Xác Nhận Xóa Lịch Trên Google Calendar</h3>
+                <p className="text-xs text-[#635950] mt-0.5">
+                  Đã thêm mới <strong className="text-[#137333]">{syncDeletePrompt.addedCount}</strong> lịch. Vui lòng kiểm tra kỹ và bỏ chọn lịch quan trọng bạn muốn giữ lại:
+                </p>
+              </div>
+              <button
+                disabled={syncDeletePrompt.isExecuting}
+                onClick={() => setSyncDeletePrompt({ isOpen: false, candidates: [], addedCount: 0, isExecuting: false })}
+                className="text-[#635950] hover:text-[#1c1815] p-1 disabled:opacity-40"
+              >
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-4 py-2 bg-[#f7f4ef] border-b border-[#e6dfd5] flex items-center justify-between text-xs">
+              <span className="font-semibold text-[#4a4036]">
+                Đang chọn xóa: <strong className="text-rose-700">{selectedSyncDeleteCount}</strong> / {syncDeletePrompt.candidates.length} lịch
+              </span>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => toggleAllSyncCandidates(true)} className="font-semibold text-[#1c1815] hover:underline">Chọn tất cả</button>
+                <button type="button" onClick={() => toggleAllSyncCandidates(false)} className="font-semibold text-[#635950] hover:underline">Bỏ chọn tất cả</button>
+              </div>
+            </div>
+
+            <div className="p-3.5 space-y-2 overflow-y-auto flex-1 text-xs">
+              {syncDeletePrompt.candidates.map((item) => (
+                <label
+                  key={item.id}
+                  className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
+                    item.selected
+                      ? 'bg-rose-50/60 border-rose-200'
+                      : 'bg-[#f7f4ef]/60 border-[#e6dfd5] opacity-75'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!item.selected}
+                    onChange={() => toggleSyncCandidate(item.id)}
+                    className="mt-0.5 w-4 h-4 rounded accent-rose-700 cursor-pointer shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-[#1c1815] break-words">{item.summary}</div>
+                    <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-[#635950]">
+                      <span>📅 {item.startStr}</span>
+                      <span className="px-1.5 py-0.2 rounded bg-[#ffffff] border border-[#dcd2c4] font-semibold text-[#4a4036]">
+                        {item.reason}
+                      </span>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="p-3.5 bg-[#ffffff] border-t border-[#e6dfd5] flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={syncDeletePrompt.isExecuting}
+                onClick={() => setSyncDeletePrompt({ isOpen: false, candidates: [], addedCount: 0, isExecuting: false })}
+                className="px-3.5 py-1.5 border border-[#dcd2c4] rounded-xl text-xs font-semibold text-[#4a4036] hover:bg-[#f7f4ef] disabled:opacity-40"
+              >
+                Không xóa lịch nào
+              </button>
+              <button
+                type="button"
+                disabled={syncDeletePrompt.isExecuting}
+                onClick={handleConfirmDeleteSyncEvents}
+                className="px-4 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50"
+              >
+                {syncDeletePrompt.isExecuting
+                  ? 'Đang xóa...'
+                  : `Xác nhận xóa (${selectedSyncDeleteCount})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: STAFF FORM */}
       {isStaffModalOpen && (
