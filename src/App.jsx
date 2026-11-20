@@ -30,6 +30,16 @@ const getVietnamTodayStr = () => {
   return formatter.format(new Date());
 };
 
+const parseYearMonth = (dateStr) => {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const parts = dateStr.split('-');
+  if (parts.length < 2) return null;
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  if (!year || !month) return null;
+  return { year, month };
+};
+
 const Icons = {
   Calendar: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,11 +139,11 @@ const normalizePackageName = (pkg) => {
 
 export default function App() {
   const currentVNDate = getVietnamTodayStr();
-  const currentVNObj = new Date(currentVNDate);
+  const currentVNParts = parseYearMonth(currentVNDate) || { year: 2026, month: 11 };
 
   const [activeTab, setActiveTab] = useState('calendar');
-  const [selectedMonth, setSelectedMonth] = useState(currentVNObj.getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(currentVNObj.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(currentVNParts.month);
+  const [selectedYear, setSelectedYear] = useState(currentVNParts.year);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 
@@ -286,7 +296,7 @@ export default function App() {
     }
 
     const startDate = showData.date;
-    const endDateObj = showData.endDate ? new Date(showData.endDate) : new Date(showData.date);
+    const endDateObj = showData.endDate ? new Date(`${showData.endDate}T00:00:00`) : new Date(`${showData.date}T00:00:00`);
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endDateStr = endDateObj.toISOString().split('T')[0];
 
@@ -523,15 +533,22 @@ export default function App() {
     return dateStr >= start && dateStr <= end;
   };
 
+  const isShowInSelectedYearMonth = (show, targetYear, targetMonth) => {
+    const startYM = parseYearMonth(show.date);
+    if (!startYM) return false;
+    const endYM = show.endDate ? parseYearMonth(show.endDate) : startYM;
+
+    const matchStart = startYM.year === targetYear && startYM.month === targetMonth;
+    const matchEnd = Boolean(endYM && endYM.year === targetYear && endYM.month === targetMonth);
+    return matchStart || matchEnd;
+  };
+
   const currentMonthShows = useMemo(() => {
     const filtered = shows.filter((show) => {
       if (!show.date) return false;
       if (isNonCommercialPackage(show.packageType)) return false;
 
-      const d = new Date(show.date);
-      const m = d.getMonth() + 1;
-      const y = d.getFullYear();
-      const matchMonth = m === selectedMonth && y === selectedYear;
+      if (!isShowInSelectedYearMonth(show, selectedYear, selectedMonth)) return false;
 
       const matchSearch =
         show.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -547,13 +564,11 @@ export default function App() {
         matchFilter = show.status === statusFilter;
       }
 
-      return (matchMonth || (show.endDate && new Date(show.endDate).getMonth() + 1 === selectedMonth)) && matchSearch && matchFilter;
+      return matchSearch && matchFilter;
     });
 
     return filtered.sort((a, b) => {
-      const dateA = new Date(a.date || '1970-01-01');
-      const dateB = new Date(b.date || '1970-01-01');
-      if (dateA - dateB !== 0) return dateA - dateB;
+      if (a.date !== b.date) return a.date.localeCompare(b.date);
       return (a.startTime || '00:00').localeCompare(b.startTime || '00:00');
     });
   }, [shows, selectedMonth, selectedYear, searchTerm, statusFilter]);
@@ -567,14 +582,7 @@ export default function App() {
 
     shows.forEach((show) => {
       if (!show.date) return;
-      const d = new Date(show.date);
-      const m = d.getMonth() + 1;
-      const y = d.getFullYear();
-      
-      const isInMonth = (m === selectedMonth && y === selectedYear) || 
-                        (show.endDate && new Date(show.endDate).getMonth() + 1 === selectedMonth && new Date(show.endDate).getFullYear() === selectedYear);
-
-      if (isInMonth) {
+      if (isShowInSelectedYearMonth(show, selectedYear, selectedMonth)) {
         if (!isNonCommercialPackage(show.packageType)) {
           commercialShowsCount++;
           totalRevenue += Number(show.totalAmount || 0);
@@ -602,8 +610,8 @@ export default function App() {
 
       shows.forEach((s) => {
         if (!s.date) return;
-        const d = new Date(s.date);
-        if (d.getFullYear() === selectedYear && d.getMonth() + 1 === monthNum) {
+        const ym = parseYearMonth(s.date);
+        if (ym && ym.year === selectedYear && ym.month === monthNum) {
           if (isNonCommercialPackage(s.packageType)) return;
 
           const totalAmt = Number(s.totalAmount || 0);
@@ -656,7 +664,7 @@ export default function App() {
         photoRevenue, photoExpenses, photoProfit, photoCount,
         makeupRevenue, makeupExpenses, makeupProfit, makeupCount,
         staffEarnings, staffShowCounts,
-        monthShows: monthShows.sort((a, b) => new Date(a.date) - new Date(b.date))
+        monthShows: monthShows.sort((a, b) => a.date.localeCompare(b.date))
       };
     });
 
@@ -734,8 +742,8 @@ export default function App() {
     shows.forEach((s) => {
       if (!s.date) return;
       if (isNonCommercialPackage(s.packageType)) return;
-      const d = new Date(s.date);
-      if (d.getFullYear() === selectedYear) {
+      const ym = parseYearMonth(s.date);
+      if (ym && ym.year === selectedYear) {
         const crewList = getNormalizeCrewList(s.assignedStaff);
         const memberItem = crewList.find(c => c.name === staffName && Number(c.pay || 0) > 0);
         if (memberItem) {
@@ -747,7 +755,7 @@ export default function App() {
         }
       }
     });
-    return matchedShows.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return matchedShows.sort((a, b) => a.date.localeCompare(b.date));
   };
 
   const handleToggleStaffPaid = async (showId, memberIdentifier, currentPaidStatus) => {
@@ -879,10 +887,10 @@ export default function App() {
       .filter((s) => isShowOnDate(s, targetDateStr))
       .sort((a, b) => (a.startTime || '00:00').localeCompare(b.startTime || '00:00'));
     
-    const dObj = new Date(targetDateStr);
-    if (!isNaN(dObj.getTime())) {
-      setSelectedMonth(dObj.getMonth() + 1);
-      setSelectedYear(dObj.getFullYear());
+    const ym = parseYearMonth(targetDateStr);
+    if (ym) {
+      setSelectedMonth(ym.month);
+      setSelectedYear(ym.year);
     }
 
     setSelectedCalendarDay({ dateStr: targetDateStr, shows: dayShows, singleShowMode: dayShows.length === 1 });
@@ -1330,7 +1338,7 @@ export default function App() {
                   const totalExp = calculateShowTotalExpenses(show);
                   const profit = (show.totalAmount || 0) - totalExp;
                   const otherExpensesSum = (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-                  const dateStr = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
+                  const dateStr = show.endDate && show.endDate !== show.date ? `${new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` : new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN');
 
                   return (
                     <div key={show.id} className="bg-[#ffffff] rounded-xl border border-[#e6dfd5] p-4 shadow-2xs space-y-3 hover:border-[#dcd2c4] transition">
@@ -1738,7 +1746,7 @@ export default function App() {
 
                     <div className="space-y-2 max-h-[48vh] overflow-y-auto pr-1">
                       {staffShows.map((item, idx) => {
-                        const dateText = item.endDate && item.endDate !== item.date ? `${new Date(item.date).toLocaleDateString('vi-VN')} ➔ ${new Date(item.endDate).toLocaleDateString('vi-VN')}` : new Date(item.date).toLocaleDateString('vi-VN');
+                        const dateText = item.endDate && item.endDate !== item.date ? `${new Date(`${item.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${item.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` : new Date(`${item.date}T00:00:00`).toLocaleDateString('vi-VN');
                         return (
                           <div key={item.id + '-' + (item.memberId || idx)} className={`p-3 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 transition ${item.paid ? 'bg-[#e6f4ea]/50 border-[#ceead6]' : 'bg-[#f7f4ef]/60 border-[#e6dfd5]'}`}>
                             <div className="space-y-1">
@@ -1809,9 +1817,9 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <Icons.Calendar className="w-4 h-4 text-[#635950]" />
                       <span>
-                        {showFormData.date ? new Date(showFormData.date).toLocaleDateString('vi-VN') : 'Chọn ngày bắt đầu'}
+                        {showFormData.date ? new Date(`${showFormData.date}T00:00:00`).toLocaleDateString('vi-VN') : 'Chọn ngày bắt đầu'}
                         {' ➔ '}
-                        {showFormData.endDate ? new Date(showFormData.endDate).toLocaleDateString('vi-VN') : (showFormData.date ? new Date(showFormData.date).toLocaleDateString('vi-VN') : 'Chọn ngày kết thúc')}
+                        {showFormData.endDate ? new Date(`${showFormData.endDate}T00:00:00`).toLocaleDateString('vi-VN') : (showFormData.date ? new Date(`${showFormData.date}T00:00:00`).toLocaleDateString('vi-VN') : 'Chọn ngày kết thúc')}
                       </span>
                     </div>
                     <span className="text-[10px] text-[#137333] bg-[#ffffff] px-2 py-0.5 rounded border border-[#dcd2c4]">Chọn lịch ▾</span>
@@ -1979,7 +1987,7 @@ export default function App() {
           <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-xl w-full max-w-lg p-4 sm:p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-[#e6dfd5] pb-3">
               <div>
-                <h3 className="font-bold text-[#1c1815]">Lịch Ngày {new Date(selectedCalendarDay.dateStr).toLocaleDateString('vi-VN')}</h3>
+                <h3 className="font-bold text-[#1c1815]">Lịch Ngày {new Date(`${selectedCalendarDay.dateStr}T00:00:00`).toLocaleDateString('vi-VN')}</h3>
                 <p className="text-xs text-[#635950] font-medium">Tổng số: {selectedCalendarDay.shows.length} lịch hẹn/show</p>
               </div>
               <button onClick={() => setSelectedCalendarDay(null)} className="text-[#635950] hover:text-[#1c1815]"><Icons.X className="w-5 h-5" /></button>
@@ -2002,7 +2010,7 @@ export default function App() {
                   const remaining = totalPackage - deposit;
                   const totalExp = calculateShowTotalExpenses(show);
                   const profit = totalPackage - totalExp;
-                  const dateText = show.endDate && show.endDate !== show.date ? `${new Date(show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(show.endDate).toLocaleDateString('vi-VN')}` : new Date(show.date).toLocaleDateString('vi-VN');
+                  const dateText = show.endDate && show.endDate !== show.date ? `${new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` : new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN');
 
                   return (
                     <div key={show.id} className="bg-[#f7f4ef]/50 p-3.5 rounded-xl border border-[#e6dfd5] space-y-3">
@@ -2135,8 +2143,8 @@ export default function App() {
                       <span className="text-[#635950]">📅 Thời gian:</span>
                       <strong className="text-[#1c1815]">
                         {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
-                          ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
-                          : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
+                          ? `${new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${confirmationModal.show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}`
+                          : new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
                     <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
@@ -2174,8 +2182,8 @@ export default function App() {
                       <span className="text-[#635950]">📅 Thời gian:</span>
                       <strong className="text-[#1c1815]">
                         {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
-                          ? `${new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')} ➔ ${new Date(confirmationModal.show.endDate).toLocaleDateString('vi-VN')}`
-                          : new Date(confirmationModal.show.date).toLocaleDateString('vi-VN')}
+                          ? `${new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${confirmationModal.show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}`
+                          : new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')}
                       </strong>
                     </div>
                     <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ làm việc:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
@@ -2203,8 +2211,8 @@ export default function App() {
               <button onClick={() => {
                 const show = confirmationModal.show;
                 const dateStrText = show.endDate && show.endDate !== show.date 
-                  ? `${new Date(show.date).toLocaleDateString('vi-VN')} đến ${new Date(show.endDate).toLocaleDateString('vi-VN')}` 
-                  : new Date(show.date).toLocaleDateString('vi-VN');
+                  ? `${new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN')} đến ${new Date(`${show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` 
+                  : new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN');
                 
                 let text = '';
                 if (confirmationModal.type === 'client') {
