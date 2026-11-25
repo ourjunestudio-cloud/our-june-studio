@@ -557,6 +557,11 @@ export default function App() {
 
   const isNonCommercialPackage = (pkgType) => pkgType === 'Gặp khách' || pkgType === 'Đợi khách' || pkgType === 'Ngày nghỉ';
 
+  const getBrandName = (pkgType) => {
+    if (pkgType === 'Makeup') return 'DO ANH THI MAKEUP';
+    return 'OUR JUNE STUDIO';
+  };
+
   const getNormalizeCrewList = (assignedStaff) => {
     if (!assignedStaff) return [];
     if (assignedStaff.crewList && Array.isArray(assignedStaff.crewList)) {
@@ -974,12 +979,24 @@ export default function App() {
     const targetDate = showFormData.date;
     const isNonComm = isNonCommercialPackage(showFormData.packageType);
 
+    // Tự động gộp khoản chi phí đang nhập dở trên điện thoại/máy tính nếu người dùng quên bấm nút "+ Thêm"
+    let finalExpenses = [...(showFormData.expenses || [])];
+    const pendingTitle = (newExpenseTitle || '').trim();
+    const pendingAmount = Number(newExpenseAmount || 0);
+    if (!isNonComm && (pendingTitle !== '' || pendingAmount > 0)) {
+      finalExpenses.push({
+        id: 'exp-' + Date.now(),
+        title: pendingTitle || 'Chi phí phát sinh',
+        amount: pendingAmount
+      });
+    }
+
     const payload = {
       ...showFormData,
       clientName: showFormData.packageType === 'Ngày nghỉ' ? (showFormData.clientName || 'Ngày nghỉ cá nhân') : showFormData.clientName,
       totalAmount: isNonComm ? 0 : Number(showFormData.totalAmount || 0),
       depositAmount: isNonComm ? 0 : Number(showFormData.depositAmount || 0),
-      expenses: isNonComm ? [] : showFormData.expenses,
+      expenses: isNonComm ? [] : finalExpenses,
       assignedStaff: isNonComm ? { crewList: [] } : showFormData.assignedStaff
     };
 
@@ -1006,6 +1023,8 @@ export default function App() {
         alert("⚠️ Lịch đã được lưu vào web nhưng chưa thể đẩy lên Google Calendar. Vui lòng kiểm tra lại kết nối.");
       }
 
+      setNewExpenseTitle('');
+      setNewExpenseAmount('');
       setIsShowModalOpen(false);
 
       if (modalOriginTab === 'list') {
@@ -1037,15 +1056,21 @@ export default function App() {
   };
 
   const handleAddExpense = () => {
-    if (!newExpenseTitle || !newExpenseAmount) return;
-    const newExp = { id: 'exp-' + Date.now(), title: newExpenseTitle, amount: Number(newExpenseAmount) };
-    setShowFormData({ ...showFormData, expenses: [...(showFormData.expenses || []), newExp] });
+    const trimmedTitle = (newExpenseTitle || '').trim();
+    const parsedAmount = Number(newExpenseAmount || 0);
+    if (!trimmedTitle && parsedAmount <= 0) return;
+    const newExp = {
+      id: 'exp-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      title: trimmedTitle || 'Chi phí phát sinh',
+      amount: parsedAmount
+    };
+    setShowFormData(prev => ({ ...prev, expenses: [...(prev.expenses || []), newExp] }));
     setNewExpenseTitle('');
     setNewExpenseAmount('');
   };
 
   const handleRemoveExpense = (id) => {
-    setShowFormData({ ...showFormData, expenses: (showFormData.expenses || []).filter((item) => item.id !== id) });
+    setShowFormData(prev => ({ ...prev, expenses: (prev.expenses || []).filter((item) => item.id !== id) }));
   };
 
   const handleOpenStaffModal = (staffToEdit = null) => {
@@ -2107,9 +2132,9 @@ export default function App() {
                       ))}
                     </div>
                     <div className="flex gap-1.5">
-                      <input type="text" placeholder="Tên chi phí" value={newExpenseTitle} onChange={(e) => setNewExpenseTitle(e.target.value)} style={{ fontSize: '16px' }} className="flex-1 px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded text-[#1c1815]" />
-                      <input type="number" placeholder="Số tiền" value={newExpenseAmount} onChange={(e) => setNewExpenseAmount(e.target.value)} style={{ fontSize: '16px' }} className="w-24 px-2 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded font-bold text-rose-700" />
-                      <button type="button" onClick={handleAddExpense} className="px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] text-[#1c1815] rounded">+ Thêm</button>
+                      <input type="text" placeholder="Tên chi phí" value={newExpenseTitle} onChange={(e) => setNewExpenseTitle(e.target.value)} style={{ fontSize: '16px' }} className="flex-1 min-w-0 px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded text-[#1c1815]" />
+                      <input type="number" placeholder="Số tiền" value={newExpenseAmount} onChange={(e) => setNewExpenseAmount(e.target.value)} style={{ fontSize: '16px' }} className="w-24 shrink-0 px-2 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded font-bold text-rose-700" />
+                      <button type="button" onClick={handleAddExpense} className="shrink-0 px-2.5 py-1 bg-[#2c2621] text-[#f9f6f0] font-semibold rounded">+ Thêm</button>
                     </div>
                   </div>
 
@@ -2272,161 +2297,169 @@ export default function App() {
       )}
 
       {/* MODAL: EXPORT CONFIRMATION CARDS */}
-      {confirmationModal.isOpen && confirmationModal.show && (
-        <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
-          <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
-            <div className="p-3.5 border-b border-[#e6dfd5] flex justify-between items-center bg-[#ffffff]">
-              <span className="font-bold text-xs uppercase tracking-wider text-[#635950]">
-                {confirmationModal.type === 'client' ? '📋 Phiếu Xác Nhận Dành Cho Khách Hàng' : '📌 Phiếu Xếp Lịch Cho Nhân Sự'}
-              </span>
-              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="text-[#635950] hover:text-[#1c1815] p-1"><Icons.X className="w-5 h-5" /></button>
-            </div>
-
-            <div className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
-              <div className="text-center border-b border-[#e6dfd5] pb-3 space-y-1">
-                <span className="font-bold text-sm tracking-tight text-[#1c1815]">OUR JUNE STUDIO</span>
-                <p className="text-[10px] text-[#635950] font-semibold uppercase tracking-widest">
-                  {confirmationModal.type === 'client' ? 'XÁC NHẬN THÔNG TIN LỊCH HẸN & DỊCH VỤ' : 'THÔNG TIN PHÂN CÔNG LỊCH EKIP CHỤP'}
-                </p>
+      {confirmationModal.isOpen && confirmationModal.show && (() => {
+        const brandTitle = getBrandName(confirmationModal.show.packageType);
+        return (
+          <div className="fixed inset-0 z-[60] bg-[#1c1815]/75 backdrop-blur-md flex items-center justify-center p-3 overflow-y-auto">
+            <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-md overflow-hidden my-6">
+              <div className="p-3.5 border-b border-[#e6dfd5] flex justify-between items-center bg-[#ffffff]">
+                <span className="font-bold text-xs uppercase tracking-wider text-[#635950]">
+                  {confirmationModal.type === 'client' ? '📋 Phiếu Xác Nhận Dành Cho Khách Hàng' : '📌 Phiếu Xếp Lịch Cho Nhân Sự'}
+                </span>
+                <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="text-[#635950] hover:text-[#1c1815] p-1"><Icons.X className="w-5 h-5" /></button>
               </div>
 
-              {confirmationModal.type === 'client' && (
-                <div className="space-y-3 text-xs">
-                  <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                    <div className="flex justify-between"><span className="text-[#635950]">Khách hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">Gói dịch vụ:</span><span className="font-bold bg-[#ffffff] text-[#1c1815] border border-[#dcd2c4] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
-                  </div>
-
-                  <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
-                    <div className="flex justify-between">
-                      <span className="text-[#635950]">📅 Thời gian:</span>
-                      <strong className="text-[#1c1815]">
-                        {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
-                          ? `${new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${confirmationModal.show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}`
-                          : new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')}
-                      </strong>
-                    </div>
-                    <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815] text-right truncate max-w-[200px]">{confirmationModal.show.location || 'Tại Studio Our June'}</strong></div>
-                  </div>
-
-                  {!isNonCommercialPackage(confirmationModal.show.packageType) && (
-                    <div className="bg-[#f7f4ef] p-3.5 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                      <div className="flex justify-between text-[#4a4036]"><span>Giá hợp đồng:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
-                      <div className="flex justify-between text-[#4a4036]"><span>Đã đặt cọc:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
-                      <div className="flex justify-between text-rose-700 font-bold border-t border-[#e6dfd5] pt-1.5 text-sm">
-                        <span>Còn lại cần thanh toán:</span>
-                        <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1">
-                    <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">📝 Ghi chú:</span>
-                    <p className="text-[#1c1815] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
-                  </div>
+              <div className="p-5 bg-[#ffffff] space-y-4 text-[#1c1815]">
+                <div className="text-center border-b border-[#e6dfd5] pb-3 space-y-1">
+                  <span className="font-bold text-sm tracking-tight text-[#1c1815] uppercase">{brandTitle}</span>
+                  <p className="text-[10px] text-[#635950] font-semibold uppercase tracking-widest">
+                    {confirmationModal.type === 'client' ? 'XÁC NHẬN THÔNG TIN LỊCH HẸN & DỊCH VỤ' : 'THÔNG TIN PHÂN CÔNG LỊCH EKIP'}
+                  </p>
                 </div>
-              )}
 
-              {confirmationModal.type === 'staff' && (
-                <div className="space-y-3 text-xs">
-                  <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
-                    <div className="flex justify-between"><span className="text-[#635950]">Tên Show / Gói:</span><span className="font-bold text-[#1c1815]">{confirmationModal.show.packageType}</span></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">Tên Khách Hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
-                  </div>
-
-                  <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
-                    <div className="flex justify-between">
-                      <span className="text-[#635950]">📅 Thời gian:</span>
-                      <strong className="text-[#1c1815]">
-                        {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
-                          ? `${new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${confirmationModal.show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}`
-                          : new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')}
-                      </strong>
+                {confirmationModal.type === 'client' && (
+                  <div className="space-y-3 text-xs">
+                    <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
+                      <div className="flex justify-between"><span className="text-[#635950]">Khách hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
+                      <div className="flex justify-between"><span className="text-[#635950]">Số điện thoại:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                      <div className="flex justify-between"><span className="text-[#635950]">Gói dịch vụ:</span><span className="font-bold bg-[#ffffff] text-[#1c1815] border border-[#dcd2c4] px-2 py-0.5 rounded text-[10px]">{confirmationModal.show.packageType}</span></div>
                     </div>
-                    <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ làm việc:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
-                    <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815]">{confirmationModal.show.location || 'Tại Studio'}</strong></div>
-                  </div>
 
-                  <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
-                    <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Phân công Nhân sự Ekip:</span>
-                    {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
-                      <div key={c.id || i} className="flex justify-between border-b border-[#e6dfd5] pb-1 last:border-none">
-                        <span className="text-[#635950]">👤 {c.role}:</span><strong className="text-[#1c1815]">{c.name}</strong>
+                    <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
+                      <div className="flex justify-between">
+                        <span className="text-[#635950]">📅 Thời gian:</span>
+                        <strong className="text-[#1c1815]">
+                          {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
+                            ? `${new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${confirmationModal.show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}`
+                            : new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')}
+                        </strong>
                       </div>
-                    ))}
+                      <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                      <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815] text-right truncate max-w-[200px]">{confirmationModal.show.location || (confirmationModal.show.packageType === 'Makeup' ? 'Tại Do Anh Thi Makeup' : 'Tại Studio Our June')}</strong></div>
+                    </div>
+
+                    {!isNonCommercialPackage(confirmationModal.show.packageType) && (
+                      <div className="bg-[#f7f4ef] p-3.5 rounded-xl border border-[#e6dfd5] space-y-1.5">
+                        <div className="flex justify-between text-[#4a4036]"><span>Giá hợp đồng:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
+                        <div className="flex justify-between text-[#4a4036]"><span>Đã đặt cọc:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
+                        <div className="flex justify-between text-rose-700 font-bold border-t border-[#e6dfd5] pt-1.5 text-sm">
+                          <span>Còn lại cần thanh toán:</span>
+                          <span>{formatCurrency(Number(confirmationModal.show.totalAmount || 0) - Number(confirmationModal.show.depositAmount || 0))}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1">
+                      <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">📝 Ghi chú:</span>
+                      <p className="text-[#1c1815] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có ghi chú'}</p>
+                    </div>
                   </div>
+                )}
 
-                  <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1">
-                    <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">📝 Ghi chú Ekip:</span>
-                    <p className="text-[#1c1815] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có'}</p>
+                {confirmationModal.type === 'staff' && (
+                  <div className="space-y-3 text-xs">
+                    <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1.5">
+                      <div className="flex justify-between"><span className="text-[#635950]">Tên Show / Gói:</span><span className="font-bold text-[#1c1815]">{confirmationModal.show.packageType}</span></div>
+                      <div className="flex justify-between"><span className="text-[#635950]">Tên Khách Hàng:</span><strong className="text-[#1c1815]">{confirmationModal.show.clientName}</strong></div>
+                      <div className="flex justify-between"><span className="text-[#635950]">📞 SĐT Khách:</span><strong className="text-[#4a4036]">{confirmationModal.show.clientPhone || 'Chưa cung cấp'}</strong></div>
+                    </div>
+
+                    <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
+                      <div className="flex justify-between">
+                        <span className="text-[#635950]">📅 Thời gian:</span>
+                        <strong className="text-[#1c1815]">
+                          {confirmationModal.show.endDate && confirmationModal.show.endDate !== confirmationModal.show.date
+                            ? `${new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${confirmationModal.show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}`
+                            : new Date(`${confirmationModal.show.date}T00:00:00`).toLocaleDateString('vi-VN')}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between"><span className="text-[#635950]">⏰ Giờ làm việc:</span><strong className="text-[#1c1815]">{confirmationModal.show.startTime || '08:00'} - {confirmationModal.show.endTime || '12:00'}</strong></div>
+                      <div className="flex justify-between"><span className="text-[#635950]">📍 Địa điểm:</span><strong className="text-[#1c1815]">{confirmationModal.show.location || 'Tại Studio'}</strong></div>
+                    </div>
+
+                    <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
+                      <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Phân công Nhân sự Ekip:</span>
+                      {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
+                        <div key={c.id || i} className="flex justify-between border-b border-[#e6dfd5] pb-1 last:border-none">
+                          <span className="text-[#635950]">👤 {c.role}:</span><strong className="text-[#1c1815]">{c.name}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5] space-y-1">
+                      <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">📝 Ghi chú Ekip:</span>
+                      <p className="text-[#1c1815] leading-relaxed whitespace-pre-wrap">{confirmationModal.show.notes || 'Không có'}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex justify-between gap-2">
-              <button onClick={() => {
-                const show = confirmationModal.show;
-                const dateStrText = show.endDate && show.endDate !== show.date 
-                  ? `${new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN')} đến ${new Date(`${show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` 
-                  : new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN');
-                
-                let text = '';
-                if (confirmationModal.type === 'client') {
-                  const total = Number(show.totalAmount || 0);
-                  const deposit = Number(show.depositAmount || 0);
-                  const remaining = total - deposit;
+              <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex justify-between gap-2">
+                <button onClick={() => {
+                  const show = confirmationModal.show;
+                  const isMakeupShow = show.packageType === 'Makeup';
+                  const msgBrandHeader = isMakeupShow ? 'DO ANH THI MAKEUP' : 'OUR JUNE STUDIO';
+                  const msgBrandFooter = isMakeupShow ? 'Do Anh Thi Makeup' : 'Our June Studio';
+                  const defaultLocationText = isMakeupShow ? 'Tại Do Anh Thi Makeup' : 'Tại Studio Our June';
 
-                  text = `[OUR JUNE STUDIO] XÁC NHẬN LỊCH HẸN & DỊCH VỤ\n` +
-                         `----------------------------------------\n` +
-                         `- Khách hàng: ${show.clientName}\n` +
-                         `- SĐT: ${show.clientPhone || 'Chưa cung cấp'}\n` +
-                         `- Gói dịch vụ: ${show.packageType}\n` +
-                         `- Ngày: ${dateStrText}\n` +
-                         `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
-                         `- Địa điểm: ${show.location || 'Tại Studio Our June'}\n`;
+                  const dateStrText = show.endDate && show.endDate !== show.date 
+                    ? `${new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN')} đến ${new Date(`${show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` 
+                    : new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN');
                   
-                  if (!isNonCommercialPackage(show.packageType)) {
-                    text += `- Giá hợp đồng: ${formatCurrency(total)}\n` +
-                            `- Đã đặt cọc: ${formatCurrency(deposit)}\n` +
-                            `- Còn lại cần thanh toán: ${formatCurrency(remaining)}\n`;
-                  }
+                  let text = '';
+                  if (confirmationModal.type === 'client') {
+                    const total = Number(show.totalAmount || 0);
+                    const deposit = Number(show.depositAmount || 0);
+                    const remaining = total - deposit;
 
-                  text += `- Ghi chú: ${show.notes || 'Không có'}\n` +
-                          `----------------------------------------\n` +
-                          `Cảm ơn bạn đã đồng hành cùng Our June Studio!`;
-                } else {
-                  const crewText = getNormalizeCrewList(show.assignedStaff)
-                    .map(c => `+ ${c.role}: ${c.name}`)
-                    .join('\n');
+                    text = `[${msgBrandHeader}] XÁC NHẬN LỊCH HẸN & DỊCH VỤ\n` +
+                           `----------------------------------------\n` +
+                           `- Khách hàng: ${show.clientName}\n` +
+                           `- SĐT: ${show.clientPhone || 'Chưa cung cấp'}\n` +
+                           `- Gói dịch vụ: ${show.packageType}\n` +
+                           `- Ngày: ${dateStrText}\n` +
+                           `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
+                           `- Địa điểm: ${show.location || defaultLocationText}\n`;
+                    
+                    if (!isNonCommercialPackage(show.packageType)) {
+                      text += `- Giá hợp đồng: ${formatCurrency(total)}\n` +
+                              `- Đã đặt cọc: ${formatCurrency(deposit)}\n` +
+                              `- Còn lại cần thanh toán: ${formatCurrency(remaining)}\n`;
+                    }
 
-                    text = `[OUR JUNE STUDIO] LỊCH PHÂN CÔNG EKIP CHỤP\n` +
+                    text += `- Ghi chú: ${show.notes || 'Không có'}\n` +
+                            `----------------------------------------\n` +
+                            `Cảm ơn bạn đã đồng hành cùng ${msgBrandFooter}!`;
+                  } else {
+                    const crewText = getNormalizeCrewList(show.assignedStaff)
+                      .map(c => `+ ${c.role}: ${c.name}`)
+                      .join('\n');
+
+                    text = `[${msgBrandHeader}] LỊCH PHÂN CÔNG EKIP\n` +
                            `----------------------------------------\n` +
                            `- Gói / Show: ${show.packageType}\n` +
                            `- Khách hàng: ${show.clientName} (SĐT: ${show.clientPhone || 'Chưa có'})\n` +
                            `- Ngày: ${dateStrText}\n` +
                            `- Khung giờ: ${show.startTime || '08:00'} - ${show.endTime || '12:00'}\n` +
-                           `- Địa điểm: ${show.location || 'Tại Studio'}\n` +
+                           `- Địa điểm: ${show.location || defaultLocationText}\n` +
                            `- Ekip phụ trách:\n${crewText || 'Chưa phân công'}\n` +
                            `- Ghi chú: ${show.notes || 'Không có'}\n` +
                            `----------------------------------------\n` +
                            `Mọi người chú ý thời gian chuẩn bị nhé!`;
-                }
+                  }
 
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                  navigator.clipboard.writeText(text).then(() => alert('Đã sao chép đầy đủ nội dung tin nhắn vào bộ nhớ tạm!'));
-                }
-              }} className="flex-1 bg-[#2c2621] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#4a4036]">
-                📋 Sao Chép Tin Nhắn Đầy Đủ
-              </button>
-              <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-4 py-1.5 border border-[#e6dfd5] text-[#635950] rounded-xl text-xs font-semibold">Đóng</button>
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(() => alert('Đã sao chép đầy đủ nội dung tin nhắn vào bộ nhớ tạm!'));
+                  }
+                }} className="flex-1 bg-[#2c2621] text-[#f9f6f0] px-3 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#4a4036]">
+                  📋 Sao Chép Tin Nhắn Đầy Đủ
+                </button>
+                <button onClick={() => setConfirmationModal({ isOpen: false, type: 'client', show: null })} className="px-4 py-1.5 border border-[#e6dfd5] text-[#635950] rounded-xl text-xs font-semibold">Đóng</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
