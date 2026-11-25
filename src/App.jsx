@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, setDoc } from "firebase/firestore";
 
 // Cấu hình Firebase của Our June Studio
 const firebaseConfig = {
@@ -54,6 +54,11 @@ const Icons = {
   TrendingUp: (props) => (
     <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  ),
+  Bell: (props) => (
+    <svg className={props.className || "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
     </svg>
   ),
   Plus: (props) => (
@@ -137,6 +142,8 @@ const normalizePackageName = (pkg) => {
   return pkg;
 };
 
+const sanitizeForFirestore = (obj) => JSON.parse(JSON.stringify(obj));
+
 export default function App() {
   const currentVNDate = getVietnamTodayStr();
   const currentVNParts = parseYearMonth(currentVNDate) || { year: 2026, month: 11 };
@@ -149,13 +156,18 @@ export default function App() {
 
   const [shows, setShows] = useState([]);
   const [staffList, setStaffList] = useState([]);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [lastSeenLogAt, setLastSeenLogAt] = useState(() => Number(localStorage.getItem('ojs_last_seen_log_at') || 0));
+  const [restoringLogId, setRestoringLogId] = useState(null);
+
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
 
   // State cho modal xác nhận trước khi xóa sự kiện trên Google Calendar
   const [syncDeletePrompt, setSyncDeletePrompt] = useState({
     isOpen: false,
-    candidates: [], // [{ id, summary, startStr, reason, selected }]
+    candidates: [],
     addedCount: 0,
     isExecuting: false
   });
@@ -188,6 +200,13 @@ export default function App() {
       setStaffList(items);
     });
 
+    const unsubLogs = onSnapshot(collection(db, "activity_logs"), (snapshot) => {
+      const items = snapshot.docs
+        .map(doc => ({ ...doc.data(), id: doc.id }))
+        .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+      setActivityLogs(items.slice(0, 100));
+    });
+
     const script = document.createElement('script');
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
@@ -217,9 +236,47 @@ export default function App() {
     return () => {
       unsubShows();
       unsubStaff();
+      unsubLogs();
       window.removeEventListener('focus', checkTokenStatus);
     };
   }, []);
+
+  const writeActivityLog = async ({ actionType, targetType, summary, detail = '', previousData = null, targetId = null }) => {
+    try {
+      const now = Date.now();
+      const timeLabel = new Date(now).toLocaleString('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit'
+      });
+
+      await addDoc(collection(db, "activity_logs"), {
+        actionType, // 'create' | 'update' | 'delete' | 'restore'
+        targetType, // 'show' | 'staff'
+        targetId: targetId || null,
+        summary,
+        detail,
+        timeLabel,
+        timestamp: now,
+        previousData: previousData ? sanitizeForFirestore(previousData) : null
+      });
+    } catch (err) {
+      console.error("Lỗi ghi nhật ký thông báo:", err);
+    }
+  };
+
+  const handleOpenNotifications = () => {
+    const latestTs = activityLogs.length > 0 ? Number(activityLogs[0].timestamp || Date.now()) : Date.now();
+    setLastSeenLogAt(latestTs);
+    localStorage.setItem('ojs_last_seen_log_at', String(latestTs));
+    setIsNotificationOpen(true);
+  };
+
+  const unreadLogsCount = useMemo(() => {
+    return activityLogs.filter(log => Number(log.timestamp || 0) > lastSeenLogAt).length;
+  }, [activityLogs, lastSeenLogAt]);
 
   const [isShowModalOpen, setIsShowModalOpen] = useState(false);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -238,7 +295,9 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (syncDeletePrompt.isOpen && !syncDeletePrompt.isExecuting) {
+        if (isNotificationOpen) {
+          setIsNotificationOpen(false);
+        } else if (syncDeletePrompt.isOpen && !syncDeletePrompt.isExecuting) {
           setSyncDeletePrompt({ isOpen: false, candidates: [], addedCount: 0, isExecuting: false });
         } else if (confirmationModal.isOpen) {
           setConfirmationModal({ isOpen: false, type: 'client', show: null });
@@ -255,7 +314,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [syncDeletePrompt.isOpen, syncDeletePrompt.isExecuting, confirmationModal.isOpen, isShowModalOpen, isStaffModalOpen, selectedStaffForModal, selectedCalendarDay]);
+  }, [isNotificationOpen, syncDeletePrompt.isOpen, syncDeletePrompt.isExecuting, confirmationModal.isOpen, isShowModalOpen, isStaffModalOpen, selectedStaffForModal, selectedCalendarDay]);
 
   const handleConnectGoogle = () => {
     if (tokenClient) {
@@ -979,7 +1038,6 @@ export default function App() {
     const targetDate = showFormData.date;
     const isNonComm = isNonCommercialPackage(showFormData.packageType);
 
-    // Tự động gộp khoản chi phí đang nhập dở trên điện thoại/máy tính nếu người dùng quên bấm nút "+ Thêm"
     let finalExpenses = [...(showFormData.expenses || [])];
     const pendingTitle = (newExpenseTitle || '').trim();
     const pendingAmount = Number(newExpenseAmount || 0);
@@ -1009,13 +1067,33 @@ export default function App() {
 
       let updatedShows = [...shows];
       if (editingShow) {
+        const previousSnapshot = { ...editingShow };
+        delete previousSnapshot.id;
+
         await deleteShowFromGoogleCalendar(editingShow);
         const showRef = doc(db, "shows", editingShow.id);
         await updateDoc(showRef, payload);
         updatedShows = updatedShows.map(s => s.id === editingShow.id ? { ...payload, id: editingShow.id } : s);
+
+        await writeActivityLog({
+          actionType: 'update',
+          targetType: 'show',
+          targetId: editingShow.id,
+          summary: `Sửa lịch [${payload.packageType}] - ${payload.clientName}`,
+          detail: `Ngày ${payload.date}${payload.endDate && payload.endDate !== payload.date ? ` → ${payload.endDate}` : ''} · Trạng thái: ${payload.status}`,
+          previousData: previousSnapshot
+        });
       } else {
         const docRef = await addDoc(collection(db, "shows"), payload);
         updatedShows.push({ ...payload, id: docRef.id });
+
+        await writeActivityLog({
+          actionType: 'create',
+          targetType: 'show',
+          targetId: docRef.id,
+          summary: `Thêm lịch [${payload.packageType}] - ${payload.clientName}`,
+          detail: `Ngày ${payload.date}${payload.endDate && payload.endDate !== payload.date ? ` → ${payload.endDate}` : ''} · ${payload.location || 'Chưa rõ địa điểm'}`
+        });
       }
       
       const syncSuccess = await syncShowToGoogleCalendar(payload);
@@ -1042,9 +1120,24 @@ export default function App() {
       try {
         const showToDelete = shows.find(s => s.id === id);
         if (showToDelete) {
+          const snapshot = { ...showToDelete };
+          delete snapshot.id;
+
           await deleteShowFromGoogleCalendar(showToDelete);
+          await deleteDoc(doc(db, "shows", id));
+
+          await writeActivityLog({
+            actionType: 'delete',
+            targetType: 'show',
+            targetId: id,
+            summary: `Xóa lịch [${showToDelete.packageType}] - ${showToDelete.clientName}`,
+            detail: `Ngày ${showToDelete.date}${showToDelete.endDate && showToDelete.endDate !== showToDelete.date ? ` → ${showToDelete.endDate}` : ''} · HĐ: ${formatCurrency(showToDelete.totalAmount)}`,
+            previousData: snapshot
+          });
+        } else {
+          await deleteDoc(doc(db, "shows", id));
         }
-        await deleteDoc(doc(db, "shows", id));
+
         const updatedShows = shows.filter(s => s.id !== id);
         if (selectedCalendarDay && targetDate) {
           openDayDetailByDate(targetDate, updatedShows);
@@ -1052,6 +1145,38 @@ export default function App() {
       } catch (error) {
         console.error("Lỗi xóa show:", error);
       }
+    }
+  };
+
+  const handleRestoreShowFromLog = async (logItem) => {
+    if (!logItem || !logItem.previousData || logItem.targetType !== 'show') return;
+    setRestoringLogId(logItem.id);
+    try {
+      const restoredPayload = sanitizeForFirestore(logItem.previousData);
+      if (logItem.targetId) {
+        await setDoc(doc(db, "shows", logItem.targetId), restoredPayload);
+      } else {
+        await addDoc(collection(db, "shows"), restoredPayload);
+      }
+
+      if (restoredPayload.date) {
+        await syncShowToGoogleCalendar(restoredPayload);
+      }
+
+      await writeActivityLog({
+        actionType: 'restore',
+        targetType: 'show',
+        targetId: logItem.targetId || null,
+        summary: `Khôi phục lịch [${restoredPayload.packageType}] - ${restoredPayload.clientName}`,
+        detail: `Khôi phục về bản ngày ${restoredPayload.date} (${logItem.timeLabel})`
+      });
+
+      alert(`Đã khôi phục lịch "${restoredPayload.clientName}" (${restoredPayload.date}) thành công!`);
+    } catch (err) {
+      console.error("Lỗi khôi phục lịch:", err);
+      alert("Không thể khôi phục lịch này. Vui lòng thử lại.");
+    } finally {
+      setRestoringLogId(null);
     }
   };
 
@@ -1091,8 +1216,22 @@ export default function App() {
       if (editingStaff) {
         const staffRef = doc(db, "staff", editingStaff.id);
         await updateDoc(staffRef, staffFormData);
+        await writeActivityLog({
+          actionType: 'update',
+          targetType: 'staff',
+          targetId: editingStaff.id,
+          summary: `Sửa nhân sự: ${staffFormData.name}`,
+          detail: `Vị trí: ${staffFormData.role} · SĐT: ${staffFormData.phone || 'Chưa có'}`
+        });
       } else {
-        await addDoc(collection(db, "staff"), staffFormData);
+        const docRef = await addDoc(collection(db, "staff"), staffFormData);
+        await writeActivityLog({
+          actionType: 'create',
+          targetType: 'staff',
+          targetId: docRef.id,
+          summary: `Thêm nhân sự: ${staffFormData.name}`,
+          detail: `Vị trí: ${staffFormData.role} · SĐT: ${staffFormData.phone || 'Chưa có'}`
+        });
       }
       setStaffFormData({ name: '', role: 'Photo', phone: '' });
       setEditingStaff(null);
@@ -1104,7 +1243,19 @@ export default function App() {
 
   const handleDeleteStaff = async (id) => {
     if (window.confirm("Bạn có chắc muốn xóa nhân sự này?")) {
-      try { await deleteDoc(doc(db, "staff", id)); } catch (error) { console.error("Lỗi xóa nhân sự:", error); }
+      try {
+        const targetStaff = staffList.find(s => s.id === id);
+        await deleteDoc(doc(db, "staff", id));
+        if (targetStaff) {
+          await writeActivityLog({
+            actionType: 'delete',
+            targetType: 'staff',
+            targetId: id,
+            summary: `Xóa nhân sự: ${targetStaff.name}`,
+            detail: `Vị trí: ${targetStaff.role}`
+          });
+        }
+      } catch (error) { console.error("Lỗi xóa nhân sự:", error); }
     }
   };
 
@@ -1126,7 +1277,6 @@ export default function App() {
     }
   };
 
-  // Phân chia nhân sự thành 2 nhóm Media và Makeup
   const mediaStaffList = useMemo(() => {
     return staffList.filter(st => {
       const r = (st.role || '').toLowerCase();
@@ -1158,14 +1308,30 @@ export default function App() {
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
         <div className="max-w-7xl mx-auto px-3 py-2 flex flex-col gap-1.5">
           
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 truncate">
                 <span className="font-sans font-bold text-base tracking-tight text-[#1c1815]">OUR JUNE</span>
                 <span className="text-[10px] bg-[#f0eae1] text-[#635950] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#dcd2c4]">STUDIO</span>
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleOpenNotifications}
+                className="relative text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#f7f4ef] text-[#1c1815] border border-[#dcd2c4] hover:bg-[#e8dfd2] transition flex items-center gap-1"
+                title="Xem lịch sử thêm, sửa, xóa trên web và khôi phục nếu cần"
+              >
+                <Icons.Bell className="w-3.5 h-3.5 text-[#4a4036]" />
+                <span>Thông báo</span>
+                {unreadLogsCount > 0 && (
+                  <span className="bg-rose-700 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full leading-tight">
+                    {unreadLogsCount > 99 ? '99+' : unreadLogsCount}
+                  </span>
+                )}
+              </button>
+
               <button
                 onClick={handleConnectGoogle}
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1 ${
@@ -1177,10 +1343,11 @@ export default function App() {
               >
                 {isGoogleConnected ? '✓ Đã kết nối Google' : '⚠️ Cần kết nối lại Google'}
               </button>
+
               {isGoogleConnected && (
                 <button
                   onClick={handleSmartSyncWithGoogle}
-                  className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1"
+                  className="hidden sm:flex text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition items-center gap-1"
                   title="Đồng bộ thủ công: Quét thêm lịch mới và hiện danh sách xác nhận trước khi xóa lịch thừa"
                 >
                   📱 Đồng bộ Google
@@ -1763,6 +1930,81 @@ export default function App() {
         <Icons.Plus className="w-5 h-5 stroke-[2.5]" />
       </button>
 
+      {/* MODAL: NHẬT KÝ THÔNG BÁO & KHÔI PHỤC */}
+      {isNotificationOpen && (
+        <div className="fixed inset-0 z-[75] bg-[#1c1815]/55 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
+          <div className="bg-[#ffffff] rounded-2xl border border-[#e6dfd5] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[88vh]">
+            <div className="p-4 border-b border-[#e6dfd5] flex justify-between items-center bg-[#ffffff]">
+              <div>
+                <h3 className="font-bold text-sm text-[#1c1815]">Thông Báo & Nhật Ký Thao Tác</h3>
+                <p className="text-xs text-[#635950] mt-0.5">
+                  Theo dõi lịch sử thêm, sửa, xóa trên web và bấm <strong>Khôi phục</strong> nếu thao tác nhầm.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNotificationOpen(false)}
+                className="text-[#635950] hover:text-[#1c1815] p-1"
+              >
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 space-y-2.5 overflow-y-auto flex-1 text-xs">
+              {activityLogs.length === 0 ? (
+                <p className="text-center text-[#635950] italic py-8">Chưa có thông báo thao tác nào được ghi nhận.</p>
+              ) : (
+                activityLogs.map((log) => {
+                  const badgeMap = {
+                    create: { text: 'Thêm mới', cls: 'bg-[#e6f4ea] text-[#137333] border-[#ceead6]' },
+                    update: { text: 'Chỉnh sửa', cls: 'bg-amber-50 text-amber-900 border-amber-200' },
+                    delete: { text: 'Đã xóa', cls: 'bg-rose-50 text-rose-800 border-rose-200' },
+                    restore: { text: 'Đã khôi phục', cls: 'bg-blue-50 text-blue-900 border-blue-200' }
+                  };
+                  const badge = badgeMap[log.actionType] || { text: log.actionType, cls: 'bg-[#f2ede6] text-[#4a4036] border-[#dcd2c4]' };
+                  const canRestore = log.targetType === 'show' && log.previousData && (log.actionType === 'update' || log.actionType === 'delete');
+
+                  return (
+                    <div key={log.id} className="p-3 rounded-xl border border-[#e6dfd5] bg-[#f7f4ef]/50 flex items-start justify-between gap-2.5">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${badge.cls}`}>{badge.text}</span>
+                          <span className="text-[11px] text-[#635950] font-medium">{log.timeLabel || ''}</span>
+                        </div>
+                        <div className="font-bold text-[#1c1815] break-words">{log.summary}</div>
+                        {log.detail && <div className="text-[11px] text-[#4a4036] break-words">{log.detail}</div>}
+                      </div>
+
+                      {canRestore && (
+                        <button
+                          type="button"
+                          disabled={restoringLogId === log.id}
+                          onClick={() => handleRestoreShowFromLog(log)}
+                          className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#2c2621] hover:bg-[#4a4036] text-[#f9f6f0] text-[11px] font-semibold transition disabled:opacity-50"
+                          title="Khôi phục lại dữ liệu lịch trước khi sửa/xóa"
+                        >
+                          {restoringLogId === log.id ? 'Đang khôi phục...' : 'Khôi phục'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="p-3 bg-[#ffffff] border-t border-[#e6dfd5] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsNotificationOpen(false)}
+                className="px-4 py-1.5 bg-[#2c2621] text-[#f9f6f0] rounded-xl text-xs font-semibold hover:bg-[#4a4036]"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: XÁC NHẬN TRƯỚC KHI XÓA LỊCH TRÊN GOOGLE CALENDAR */}
       {syncDeletePrompt.isOpen && (
         <div className="fixed inset-0 z-[70] bg-[#1c1815]/55 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
@@ -2253,9 +2495,9 @@ export default function App() {
 
                           <div className="bg-[#ffffff] p-2.5 rounded-lg border border-[#e6dfd5] space-y-1.5">
                             <div className="flex justify-between items-center"><span className="text-[#635950] font-medium">Giá hợp đồng:</span><span className="font-bold text-[#1c1815]">{formatCurrency(totalPackage)}</span></div>
-                            <div className="flex justify-between items-center text-[#4a4036]"><span className="font-medium">Đã đặt cọc:</span><span className="font-bold text-[#1c1815]">{formatCurrency(deposit)}</span></div>
-                            <div className="flex justify-between items-center text-rose-700"><span className="font-medium">Còn lại phải thu:</span><span className="font-bold">{formatCurrency(remaining)}</span></div>
-                            <div className="flex justify-between items-center text-rose-700 pt-1 border-t border-[#e6dfd5]"><span className="font-medium">Tổng chi phí (Lương thợ + phát sinh):</span><span className="font-bold">-{formatCurrency(totalExp)}</span></div>
+                            <div className="flex justify-between items-center text-[#4a4036]"><span className="text-[#635950] font-medium">Đã đặt cọc:</span><span className="font-bold text-[#1c1815]">{formatCurrency(deposit)}</span></div>
+                            <div className="flex justify-between items-center text-rose-700"><span className="text-[#635950] font-medium">Còn lại phải thu:</span><span className="font-bold">{formatCurrency(remaining)}</span></div>
+                            <div className="flex justify-between items-center text-rose-700 pt-1 border-t border-[#e6dfd5]"><span className="text-[#635950] font-medium">Tổng chi phí (Lương thợ + phát sinh):</span><span className="font-bold">-{formatCurrency(totalExp)}</span></div>
                             <div className="flex justify-between items-center text-[#137333] pt-1 border-t border-[#e6dfd5] font-semibold"><span>Lợi nhuận ròng show:</span><span>{formatCurrency(profit)}</span></div>
                           </div>
                         </div>
