@@ -253,8 +253,8 @@ export default function App() {
       });
 
       await addDoc(collection(db, "activity_logs"), {
-        actionType, // 'create' | 'update' | 'delete' | 'restore'
-        targetType, // 'show' | 'staff'
+        actionType,
+        targetType,
         targetId: targetId || null,
         summary,
         detail,
@@ -1306,24 +1306,22 @@ export default function App() {
     <div className="min-h-screen bg-[#f7f4ef] text-[#2c2621] font-sans pb-24 selection:bg-[#e0d6c8]">
       {/* Top Header & Sticky Navigation Bar */}
       <header className="bg-[#ffffff] border-b border-[#e6dfd5] sticky top-0 z-50 shadow-xs">
-        <div className="max-w-7xl mx-auto px-3 py-2 flex flex-col gap-1.5">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-3 py-2 flex flex-col gap-1.5">
           
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex items-center gap-2 truncate">
-                <span className="font-sans font-bold text-base tracking-tight text-[#1c1815]">OUR JUNE</span>
-                <span className="text-[10px] bg-[#f0eae1] text-[#635950] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#dcd2c4]">STUDIO</span>
-              </div>
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="font-sans font-bold text-sm sm:text-base tracking-tight text-[#1c1815] truncate">OUR JUNE</span>
+              <span className="hidden xs:inline-block text-[9px] sm:text-[10px] bg-[#f0eae1] text-[#635950] font-semibold px-1.5 sm:px-2 py-0.5 rounded-md uppercase tracking-wider border border-[#dcd2c4] shrink-0">STUDIO</span>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={handleOpenNotifications}
-                className="relative text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#f7f4ef] text-[#1c1815] border border-[#dcd2c4] hover:bg-[#e8dfd2] transition flex items-center gap-1"
+                className="relative text-[10px] font-bold px-2 py-1 rounded-lg bg-[#f7f4ef] text-[#1c1815] border border-[#dcd2c4] hover:bg-[#e8dfd2] transition flex items-center gap-1 whitespace-nowrap"
                 title="Xem lịch sử thêm, sửa, xóa trên web và khôi phục nếu cần"
               >
-                <Icons.Bell className="w-3.5 h-3.5 text-[#4a4036]" />
+                <Icons.Bell className="w-3.5 h-3.5 text-[#4a4036] shrink-0" />
                 <span>Thông báo</span>
                 {unreadLogsCount > 0 && (
                   <span className="bg-rose-700 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full leading-tight">
@@ -1332,25 +1330,23 @@ export default function App() {
                 )}
               </button>
 
-              <button
-                onClick={handleConnectGoogle}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1 ${
-                  isGoogleConnected 
-                    ? 'bg-[#e6f4ea] text-[#137333] border-[#ceead6]' 
-                    : 'bg-[#fdf2f2] text-[#991b1b] border-[#fecaca] animate-pulse'
-                }`}
-                title={isGoogleConnected ? "Kết nối Google đang hoạt động tốt" : "Phiên đăng nhập đã hết hạn, bấm 1 chạm để kết nối lại ngay"}
-              >
-                {isGoogleConnected ? '✓ Đã kết nối Google' : '⚠️ Cần kết nối lại Google'}
-              </button>
-
-              {isGoogleConnected && (
+              {isGoogleConnected ? (
                 <button
+                  type="button"
                   onClick={handleSmartSyncWithGoogle}
-                  className="hidden sm:flex text-[10px] font-bold px-2.5 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition items-center gap-1"
-                  title="Đồng bộ thủ công: Quét thêm lịch mới và hiện danh sách xác nhận trước khi xóa lịch thừa"
+                  className="text-[10px] font-bold px-2 py-1 rounded-lg bg-[#e6f4ea] text-[#137333] border border-[#ceead6] hover:bg-[#ceead6] transition flex items-center gap-1 whitespace-nowrap"
+                  title="Đã kết nối Google Calendar — bấm để đồng bộ lịch ngay"
                 >
-                  📱 Đồng bộ Google
+                  <span>📱 Đồng bộ Google</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleConnectGoogle}
+                  className="text-[10px] font-bold px-2 py-1 rounded-lg bg-[#fdf2f2] text-[#991b1b] border border-[#fecaca] animate-pulse transition flex items-center gap-1 whitespace-nowrap"
+                  title="Chưa kết nối Google Calendar — bấm để kết nối ngay"
+                >
+                  <span>⚠️ Kết nối Google</span>
                 </button>
               )}
             </div>
