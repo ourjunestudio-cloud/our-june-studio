@@ -1173,7 +1173,7 @@ export default function App() {
             targetType: 'show',
             targetId: id,
             summary: `Xóa lịch [${showToDelete.packageType}] - ${showToDelete.clientName}`,
-            detail: `Ngày ${showToDelete.date}${showToDelete.endDate && showToDelete.endDate !== showToDelete.date ? ` → ${showToDelete.endDate}` : ''} · HĐ: ${formatCurrency(calculateShowTotalRevenue(showToDelete))}`,
+            detail: `Ngày ${showToDelete.date}${showToDelete.endDate && showToDelete.endDate !== showToDelete.date ? ` → ${showToDelete.endDate}` : ''} · Doanh thu: ${formatCurrency(calculateShowTotalRevenue(showToDelete))}`,
             previousData: snapshot
           });
         } else {
@@ -1537,12 +1537,12 @@ export default function App() {
             </div>
 
             <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
-              <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Doanh Thu HĐ</span>
+              <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Doanh Thu</span>
               <div>
                 <span className="text-base sm:text-xl font-bold text-[#1c1815] block truncate">{formatCurrencyCompact(monthStats.totalRevenue)}</span>
                 <p className="text-[10px] text-[#635950] font-medium truncate">
                   {monthStats.totalOtherIncome > 0
-                    ? `Thu khác: +${formatCurrencyCompact(monthStats.totalOtherIncome)}`
+                    ? `Gồm thu khác: +${formatCurrencyCompact(monthStats.totalOtherIncome)}`
                     : `Còn lại: ${formatCurrencyCompact(monthStats.remainingToCollect)}`}
                 </p>
               </div>
@@ -1560,7 +1560,7 @@ export default function App() {
               <span className="text-[11px] font-semibold text-[#137333] uppercase tracking-wider">Lợi Nhuận Ròng</span>
               <div>
                 <span className="text-base sm:text-xl font-bold text-[#137333] block truncate">{formatCurrencyCompact(monthStats.netProfit)}</span>
-                <p className="text-[10px] text-[#635950] font-medium truncate">Doanh thu trừ Chi phí</p>
+                <p className="text-[10px] text-[#635950] font-medium truncate">Tổng doanh thu trừ Chi phí</p>
               </div>
             </div>
           </div>
@@ -1722,8 +1722,9 @@ export default function App() {
                         </div>
 
                         <div className="bg-[#f7f4ef]/60 p-2.5 rounded-lg border border-[#e6dfd5] flex flex-col justify-between space-y-1">
-                          <div className="flex justify-between text-[#4a4036]"><span>Doanh Thu HĐ:</span><span className="font-bold text-[#1c1815]">{formatCurrency(show.totalAmount)}</span></div>
+                          <div className="flex justify-between text-[#4a4036]"><span>Giá Hợp Đồng:</span><span className="font-semibold text-[#1c1815]">{formatCurrency(show.totalAmount)}</span></div>
                           {otherIncomesSum > 0 && (<div className="flex justify-between text-[#137333] text-[11px]"><span>Khoản thu khác:</span><span className="font-semibold">+{formatCurrency(otherIncomesSum)}</span></div>)}
+                          <div className="flex justify-between text-[#1c1815] font-semibold"><span>Tổng Doanh Thu:</span><span>{formatCurrency(totalRev)}</span></div>
                           {otherExpensesSum > 0 && (<div className="flex justify-between text-[#635950] text-[11px]"><span>Chi phí phát sinh:</span><span className="font-semibold text-rose-700">-{formatCurrency(otherExpensesSum)}</span></div>)}
                           <div className="flex justify-between text-[#4a4036]"><span>Tổng Chi Phí Show:</span><span className="font-semibold text-rose-700">-{formatCurrency(totalExp)}</span></div>
                           <div className="flex justify-between border-t border-[#e6dfd5] pt-1 font-semibold"><span className="text-[#1c1815]">Lợi Nhuận:</span><span className="text-[#137333]">{formatCurrency(profit)}</span></div>
@@ -2589,6 +2590,10 @@ export default function App() {
                                     <span className="font-semibold">+{formatCurrency(inc.amount)}</span>
                                   </div>
                                 ))}
+                                <div className="flex justify-between items-center font-semibold text-[#1c1815] pt-0.5">
+                                  <span>Tổng doanh thu show:</span>
+                                  <span>{formatCurrency(totalRevenue)}</span>
+                                </div>
                               </div>
                             )}
                             <div className="flex justify-between items-center text-[#4a4036] pt-1 border-t border-[#f2ede6]"><span className="text-[#635950] font-medium">Đã đặt cọc:</span><span className="font-bold text-[#1c1815]">{formatCurrency(deposit)}</span></div>
