@@ -607,13 +607,10 @@ export default function App() {
     totalAmount: 0,
     depositAmount: 0,
     status: 'Chưa cọc',
-    incomes: [],
     expenses: [],
     notes: ''
   });
 
-  const [newIncomeTitle, setNewIncomeTitle] = useState('');
-  const [newIncomeAmount, setNewIncomeAmount] = useState('');
   const [newExpenseTitle, setNewExpenseTitle] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
@@ -630,16 +627,6 @@ export default function App() {
       return assignedStaff.crewList;
     }
     return [];
-  };
-
-  const calculateShowOtherIncomes = (show) => {
-    if (isNonCommercialPackage(show.packageType)) return 0;
-    return (show.incomes || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  };
-
-  const calculateShowTotalRevenue = (show) => {
-    if (isNonCommercialPackage(show.packageType)) return 0;
-    return Number(show.totalAmount || 0) + calculateShowOtherIncomes(show);
   };
 
   const calculateShowStaffPay = (show) => {
@@ -724,8 +711,6 @@ export default function App() {
 
   const monthStats = useMemo(() => {
     let totalRevenue = 0;
-    let totalContractAmount = 0;
-    let totalOtherIncome = 0;
     let totalDeposit = 0;
     let totalExpenses = 0;
     let completedShowsCount = 0;
@@ -736,11 +721,7 @@ export default function App() {
       if (isShowInSelectedYearMonth(show, selectedYear, selectedMonth)) {
         if (!isNonCommercialPackage(show.packageType)) {
           commercialShowsCount++;
-          const contractAmt = Number(show.totalAmount || 0);
-          const otherInc = calculateShowOtherIncomes(show);
-          totalContractAmount += contractAmt;
-          totalOtherIncome += otherInc;
-          totalRevenue += contractAmt + otherInc;
+          totalRevenue += Number(show.totalAmount || 0);
           totalDeposit += Number(show.depositAmount || 0);
           totalExpenses += calculateShowTotalExpenses(show);
           if (show.status === 'Đã thanh toán') completedShowsCount++;
@@ -749,15 +730,15 @@ export default function App() {
     });
 
     const netProfit = totalRevenue - totalExpenses;
-    const remainingToCollect = totalContractAmount - totalDeposit;
+    const remainingToCollect = totalRevenue - totalDeposit;
 
-    return { totalRevenue, totalOtherIncome, totalDeposit, remainingToCollect, totalExpenses, netProfit, count: commercialShowsCount, completedShowsCount };
+    return { totalRevenue, totalDeposit, remainingToCollect, totalExpenses, netProfit, count: commercialShowsCount, completedShowsCount };
   }, [shows, selectedMonth, selectedYear]);
 
   const yearlyStats = useMemo(() => {
     const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => {
       const monthNum = i + 1;
-      let revenue = 0, otherIncomeTotal = 0, expenses = 0, staffPayExpenses = 0, otherExpenses = 0, count = 0;
+      let revenue = 0, expenses = 0, staffPayExpenses = 0, otherExpenses = 0, count = 0;
       let makeupRevenue = 0, makeupExpenses = 0, makeupCount = 0;
       let photoRevenue = 0, photoExpenses = 0, photoCount = 0;
       const staffEarnings = {}, staffShowCounts = {};
@@ -769,11 +750,8 @@ export default function App() {
         if (ym && ym.year === selectedYear && ym.month === monthNum) {
           if (isNonCommercialPackage(s.packageType)) return;
 
-          const contractAmt = Number(s.totalAmount || 0);
-          const otherInc = calculateShowOtherIncomes(s);
-          const totalAmt = contractAmt + otherInc;
+          const totalAmt = Number(s.totalAmount || 0);
           revenue += totalAmt;
-          otherIncomeTotal += otherInc;
           
           const sPay = calculateShowStaffPay(s);
           const oExp = calculateShowOtherExpenses(s);
@@ -797,8 +775,6 @@ export default function App() {
           const profit = totalAmt - sExp;
           monthShows.push({
             ...s,
-            otherInc,
-            totalRev: totalAmt,
             staffPay: sPay,
             otherExp: oExp,
             totalExp: sExp,
@@ -819,7 +795,7 @@ export default function App() {
       const makeupProfit = makeupRevenue - makeupExpenses;
 
       return { 
-        month: monthNum, revenue, otherIncomeTotal, expenses, staffPayExpenses, otherExpenses, 
+        month: monthNum, revenue, expenses, staffPayExpenses, otherExpenses, 
         profit: revenue - expenses, count, 
         photoRevenue, photoExpenses, photoProfit, photoCount,
         makeupRevenue, makeupExpenses, makeupProfit, makeupCount,
@@ -831,7 +807,6 @@ export default function App() {
     const annualSummary = monthlyBreakdown.reduce(
       (acc, curr) => ({
         totalRevenue: acc.totalRevenue + curr.revenue,
-        totalOtherIncome: acc.totalOtherIncome + curr.otherIncomeTotal,
         totalExpenses: acc.totalExpenses + curr.expenses,
         totalStaffPay: acc.totalStaffPay + curr.staffPayExpenses,
         totalOtherExpenses: acc.totalOtherExpenses + curr.otherExpenses,
@@ -842,7 +817,6 @@ export default function App() {
       }),
       {
         totalRevenue: 0,
-        totalOtherIncome: 0,
         totalExpenses: 0,
         totalStaffPay: 0,
         totalOtherExpenses: 0,
@@ -862,25 +836,25 @@ export default function App() {
       csvContent += `BÁO CÁO TỔNG KẾT TÀI CHÍNH NĂM ${selectedYear} - OUR JUNE STUDIO\n\n`;
       
       csvContent += `--- TỔNG HỢP CÁC THÁNG TRONG NĂM ---\n`;
-      csvContent += `Tháng,Số lượng Show,Số Show Chụp,Số Show Makeup,Khoản Thu Khác (VNĐ),Tổng Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Lợi Nhuận Chụp Ảnh,Lợi Nhuận Makeup\n`;
+      csvContent += `Tháng,Số lượng Show,Số Show Chụp,Số Show Makeup,Doanh Thu (VNĐ),Chi Phí Lương Thợ (VNĐ),Chi Phí Khác (VNĐ),Tổng Chi Phí (VNĐ),Lợi Nhuận Ròng (VNĐ),Lợi Nhuận Chụp Ảnh,Lợi Nhuận Makeup\n`;
 
       yearlyStats.monthlyBreakdown.forEach((item) => {
-        csvContent += `Tháng ${item.month},${item.count},${item.photoCount},${item.makeupCount},${item.otherIncomeTotal},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoProfit},${item.makeupProfit}\n`;
+        csvContent += `Tháng ${item.month},${item.count},${item.photoCount},${item.makeupCount},${item.revenue},${item.staffPayExpenses},${item.otherExpenses},${item.expenses},${item.profit},${item.photoProfit},${item.makeupProfit}\n`;
       });
 
-      csvContent += `TỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalPhotoShows},${yearlyStats.annualSummary.totalMakeupShows},${yearlyStats.annualSummary.totalOtherIncome},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n\n\n`;
+      csvContent += `TỔNG CẢ NĂM,${yearlyStats.annualSummary.totalShows},${yearlyStats.annualSummary.totalPhotoShows},${yearlyStats.annualSummary.totalMakeupShows},${yearlyStats.annualSummary.totalRevenue},${yearlyStats.annualSummary.totalStaffPay},${yearlyStats.annualSummary.totalOtherExpenses},${yearlyStats.annualSummary.totalExpenses},${yearlyStats.annualSummary.totalProfit},,\n\n\n`;
 
       csvContent += `--- DANH SÁCH CHI TIẾT SHOW THEO TỪNG THÁNG TRONG NĂM ---\n\n`;
       
       yearlyStats.monthlyBreakdown.forEach((item) => {
         if (item.monthShows.length > 0) {
           csvContent += `THÁNG ${item.month} (${item.count} show)\n`;
-          csvContent += `Ngày,Gói dịch vụ,Tên khách hàng,Trạng thái,Giá HĐ (VNĐ),Khoản thu khác (VNĐ),Tổng doanh thu (VNĐ),Lương ekip (VNĐ),Chi phí phát sinh (VNĐ),Tổng chi phí (VNĐ),Lợi nhuận ròng (VNĐ)\n`;
+          csvContent += `Ngày,Gói dịch vụ,Tên khách hàng,Trạng thái,Doanh thu (VNĐ),Lương ekip (VNĐ),Chi phí phát sinh (VNĐ),Tổng chi phí (VNĐ),Lợi nhuận ròng (VNĐ)\n`;
           
           item.monthShows.forEach((show) => {
             const dateStr = show.endDate && show.endDate !== show.date ? `${show.date} -> ${show.endDate}` : show.date;
             const clientClean = (show.clientName || '').replace(/,/g, ' ');
-            csvContent += `${dateStr},${show.packageType},"${clientClean}",${show.status},${show.totalAmount || 0},${show.otherInc},${show.totalRev},${show.staffPay},${show.otherExp},${show.totalExp},${show.profit}\n`;
+            csvContent += `${dateStr},${show.packageType},"${clientClean}",${show.status},${show.totalAmount || 0},${show.staffPay},${show.otherExp},${show.totalExp},${show.profit}\n`;
           });
           csvContent += `\n`;
         }
@@ -1023,7 +997,7 @@ export default function App() {
         packageType: showToEdit.packageType || '', location: showToEdit.location || '',
         assignedStaff: { crewList: getNormalizeCrewList(showToEdit.assignedStaff) },
         totalAmount: showToEdit.totalAmount || 0, depositAmount: showToEdit.depositAmount || 0,
-        status: showToEdit.status || 'Chưa cọc', incomes: showToEdit.incomes || [], expenses: showToEdit.expenses || [], notes: showToEdit.notes || ''
+        status: showToEdit.status || 'Chưa cọc', expenses: showToEdit.expenses || [], notes: showToEdit.notes || ''
       });
     } else {
       setEditingShow(null);
@@ -1032,11 +1006,9 @@ export default function App() {
         clientName: '', clientPhone: '', date: todayStr, endDate: '',
         startTime: '', endTime: '', packageType: '', location: '',
         assignedStaff: { crewList: [] }, totalAmount: 0, depositAmount: 0,
-        status: 'Chưa cọc', incomes: [], expenses: [], notes: ''
+        status: 'Chưa cọc', expenses: [], notes: ''
       });
     }
-    setNewIncomeTitle('');
-    setNewIncomeAmount('');
     setNewExpenseTitle('');
     setNewExpenseAmount('');
     setIsDateRangePickerOpen(false);
@@ -1066,17 +1038,6 @@ export default function App() {
     const targetDate = showFormData.date;
     const isNonComm = isNonCommercialPackage(showFormData.packageType);
 
-    let finalIncomes = [...(showFormData.incomes || [])];
-    const pendingIncomeTitle = (newIncomeTitle || '').trim();
-    const pendingIncomeAmount = Number(newIncomeAmount || 0);
-    if (!isNonComm && (pendingIncomeTitle !== '' || pendingIncomeAmount > 0)) {
-      finalIncomes.push({
-        id: 'inc-' + Date.now(),
-        title: pendingIncomeTitle || 'Khoản thu khác',
-        amount: pendingIncomeAmount
-      });
-    }
-
     let finalExpenses = [...(showFormData.expenses || [])];
     const pendingTitle = (newExpenseTitle || '').trim();
     const pendingAmount = Number(newExpenseAmount || 0);
@@ -1093,7 +1054,6 @@ export default function App() {
       clientName: showFormData.packageType === 'Ngày nghỉ' ? (showFormData.clientName || 'Ngày nghỉ cá nhân') : showFormData.clientName,
       totalAmount: isNonComm ? 0 : Number(showFormData.totalAmount || 0),
       depositAmount: isNonComm ? 0 : Number(showFormData.depositAmount || 0),
-      incomes: isNonComm ? [] : finalIncomes,
       expenses: isNonComm ? [] : finalExpenses,
       assignedStaff: isNonComm ? { crewList: [] } : showFormData.assignedStaff
     };
@@ -1141,8 +1101,6 @@ export default function App() {
         alert("⚠️ Lịch đã được lưu vào web nhưng chưa thể đẩy lên Google Calendar. Vui lòng kiểm tra lại kết nối.");
       }
 
-      setNewIncomeTitle('');
-      setNewIncomeAmount('');
       setNewExpenseTitle('');
       setNewExpenseAmount('');
       setIsShowModalOpen(false);
@@ -1173,7 +1131,7 @@ export default function App() {
             targetType: 'show',
             targetId: id,
             summary: `Xóa lịch [${showToDelete.packageType}] - ${showToDelete.clientName}`,
-            detail: `Ngày ${showToDelete.date}${showToDelete.endDate && showToDelete.endDate !== showToDelete.date ? ` → ${showToDelete.endDate}` : ''} · Doanh thu: ${formatCurrency(calculateShowTotalRevenue(showToDelete))}`,
+            detail: `Ngày ${showToDelete.date}${showToDelete.endDate && showToDelete.endDate !== showToDelete.date ? ` → ${showToDelete.endDate}` : ''} · HĐ: ${formatCurrency(showToDelete.totalAmount)}`,
             previousData: snapshot
           });
         } else {
@@ -1220,24 +1178,6 @@ export default function App() {
     } finally {
       setRestoringLogId(null);
     }
-  };
-
-  const handleAddIncome = () => {
-    const trimmedTitle = (newIncomeTitle || '').trim();
-    const parsedAmount = Number(newIncomeAmount || 0);
-    if (!trimmedTitle && parsedAmount <= 0) return;
-    const newInc = {
-      id: 'inc-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-      title: trimmedTitle || 'Khoản thu khác',
-      amount: parsedAmount
-    };
-    setShowFormData(prev => ({ ...prev, incomes: [...(prev.incomes || []), newInc] }));
-    setNewIncomeTitle('');
-    setNewIncomeAmount('');
-  };
-
-  const handleRemoveIncome = (id) => {
-    setShowFormData(prev => ({ ...prev, incomes: (prev.incomes || []).filter((item) => item.id !== id) }));
   };
 
   const handleAddExpense = () => {
@@ -1537,14 +1477,10 @@ export default function App() {
             </div>
 
             <div className="bg-[#ffffff] p-3 rounded-xl border border-[#e6dfd5] shadow-2xs flex flex-col justify-between space-y-1">
-              <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Tổng Doanh Thu</span>
+              <span className="text-[11px] font-semibold text-[#635950] uppercase tracking-wider">Doanh Thu HĐ</span>
               <div>
                 <span className="text-base sm:text-xl font-bold text-[#1c1815] block truncate">{formatCurrencyCompact(monthStats.totalRevenue)}</span>
-                <p className="text-[10px] text-[#635950] font-medium truncate">
-                  {monthStats.totalOtherIncome > 0
-                    ? `Gồm thu khác: +${formatCurrencyCompact(monthStats.totalOtherIncome)}`
-                    : `Còn lại: ${formatCurrencyCompact(monthStats.remainingToCollect)}`}
-                </p>
+                <p className="text-[10px] text-[#635950] font-medium truncate">Còn lại: {formatCurrencyCompact(monthStats.remainingToCollect)}</p>
               </div>
             </div>
 
@@ -1560,7 +1496,7 @@ export default function App() {
               <span className="text-[11px] font-semibold text-[#137333] uppercase tracking-wider">Lợi Nhuận Ròng</span>
               <div>
                 <span className="text-base sm:text-xl font-bold text-[#137333] block truncate">{formatCurrencyCompact(monthStats.netProfit)}</span>
-                <p className="text-[10px] text-[#635950] font-medium truncate">Tổng doanh thu trừ Chi phí</p>
+                <p className="text-[10px] text-[#635950] font-medium truncate">Doanh thu trừ Chi phí</p>
               </div>
             </div>
           </div>
@@ -1664,10 +1600,8 @@ export default function App() {
                 </div>
               ) : (
                 currentMonthShows.map((show) => {
-                  const totalRev = calculateShowTotalRevenue(show);
                   const totalExp = calculateShowTotalExpenses(show);
-                  const profit = totalRev - totalExp;
-                  const otherIncomesSum = calculateShowOtherIncomes(show);
+                  const profit = (show.totalAmount || 0) - totalExp;
                   const otherExpensesSum = (show.expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
                   const dateStr = show.endDate && show.endDate !== show.date ? `${new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` : new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN');
 
@@ -1722,9 +1656,7 @@ export default function App() {
                         </div>
 
                         <div className="bg-[#f7f4ef]/60 p-2.5 rounded-lg border border-[#e6dfd5] flex flex-col justify-between space-y-1">
-                          <div className="flex justify-between text-[#4a4036]"><span>Giá Hợp Đồng:</span><span className="font-semibold text-[#1c1815]">{formatCurrency(show.totalAmount)}</span></div>
-                          {otherIncomesSum > 0 && (<div className="flex justify-between text-[#137333] text-[11px]"><span>Khoản thu khác:</span><span className="font-semibold">+{formatCurrency(otherIncomesSum)}</span></div>)}
-                          <div className="flex justify-between text-[#1c1815] font-semibold"><span>Tổng Doanh Thu:</span><span>{formatCurrency(totalRev)}</span></div>
+                          <div className="flex justify-between text-[#4a4036]"><span>Doanh Thu HĐ:</span><span className="font-bold text-[#1c1815]">{formatCurrency(show.totalAmount)}</span></div>
                           {otherExpensesSum > 0 && (<div className="flex justify-between text-[#635950] text-[11px]"><span>Chi phí phát sinh:</span><span className="font-semibold text-rose-700">-{formatCurrency(otherExpensesSum)}</span></div>)}
                           <div className="flex justify-between text-[#4a4036]"><span>Tổng Chi Phí Show:</span><span className="font-semibold text-rose-700">-{formatCurrency(totalExp)}</span></div>
                           <div className="flex justify-between border-t border-[#e6dfd5] pt-1 font-semibold"><span className="text-[#1c1815]">Lợi Nhuận:</span><span className="text-[#137333]">{formatCurrency(profit)}</span></div>
@@ -1761,9 +1693,6 @@ export default function App() {
                 <div className="bg-[#f7f4ef]/60 p-3.5 rounded-xl border border-[#e6dfd5] space-y-1">
                   <span className="text-xs text-[#635950] font-medium uppercase tracking-wider">Tổng Doanh Thu Năm</span>
                   <div className="text-lg sm:text-xl font-bold text-[#1c1815]">{formatCurrency(yearlyStats.annualSummary.totalRevenue)}</div>
-                  {yearlyStats.annualSummary.totalOtherIncome > 0 && (
-                    <span className="text-[11px] font-semibold text-[#137333] block">Gồm thu khác: +{formatCurrency(yearlyStats.annualSummary.totalOtherIncome)}</span>
-                  )}
                 </div>
                 <div className="bg-[#f7f4ef]/60 p-3.5 rounded-xl border border-[#e6dfd5] space-y-1">
                   <span className="text-xs text-[#a51d24] font-medium uppercase tracking-wider">Tổng Chi Phí Năm</span>
@@ -2431,23 +2360,6 @@ export default function App() {
                   </div>
 
                   <div className="space-y-1.5 border-t border-[#e6dfd5] pt-2.5">
-                    <span className="font-bold text-[10px] text-[#635950] uppercase tracking-wider block">Khoản Thu Khác</span>
-                    <div className="space-y-1">
-                      {(showFormData.incomes || []).map((inc) => (
-                        <div key={inc.id} className="flex justify-between items-center bg-[#f7f4ef]/60 p-1.5 rounded border border-[#e6dfd5]">
-                          <span className="font-medium text-[#4a4036] truncate pr-2">{inc.title}</span>
-                          <div className="flex items-center gap-1.5 shrink-0"><span className="font-bold text-[#137333]">+{formatCurrency(inc.amount)}</span><button type="button" onClick={() => handleRemoveIncome(inc.id)} className="text-rose-700"><Icons.X className="w-3 h-3" /></button></div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-1.5">
-                      <input type="text" placeholder="Tên khoản thu (VD: Tip khách)" value={newIncomeTitle} onChange={(e) => setNewIncomeTitle(e.target.value)} style={{ fontSize: '16px' }} className="flex-1 min-w-0 px-2.5 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded text-[#1c1815]" />
-                      <input type="number" placeholder="Số tiền" value={newIncomeAmount} onChange={(e) => setNewIncomeAmount(e.target.value)} style={{ fontSize: '16px' }} className="w-24 shrink-0 px-2 py-1 bg-[#f7f4ef] border border-[#dcd2c4] rounded font-bold text-[#137333]" />
-                      <button type="button" onClick={handleAddIncome} className="shrink-0 px-2.5 py-1 bg-[#2c2621] text-[#f9f6f0] font-semibold rounded">+ Thêm</button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 border-t border-[#e6dfd5] pt-2.5">
                     <span className="font-bold text-[10px] text-[#635950] uppercase tracking-wider block">Chi Phí Khác</span>
                     <div className="space-y-1">
                       {(showFormData.expenses || []).map((exp) => (
@@ -2517,12 +2429,10 @@ export default function App() {
                   const isOff = show.packageType === 'Ngày nghỉ';
                   const isNonComm = isNonCommercialPackage(show.packageType);
                   const totalPackage = Number(show.totalAmount || 0);
-                  const otherIncomesSum = calculateShowOtherIncomes(show);
-                  const totalRevenue = totalPackage + otherIncomesSum;
                   const deposit = Number(show.depositAmount || 0);
                   const remaining = totalPackage - deposit;
                   const totalExp = calculateShowTotalExpenses(show);
-                  const profit = totalRevenue - totalExp;
+                  const profit = totalPackage - totalExp;
                   const dateText = show.endDate && show.endDate !== show.date ? `${new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN')} ➔ ${new Date(`${show.endDate}T00:00:00`).toLocaleDateString('vi-VN')}` : new Date(`${show.date}T00:00:00`).toLocaleDateString('vi-VN');
 
                   return (
@@ -2581,22 +2491,7 @@ export default function App() {
 
                           <div className="bg-[#ffffff] p-2.5 rounded-lg border border-[#e6dfd5] space-y-1.5">
                             <div className="flex justify-between items-center"><span className="text-[#635950] font-medium">Giá hợp đồng:</span><span className="font-bold text-[#1c1815]">{formatCurrency(totalPackage)}</span></div>
-                            {(show.incomes || []).length > 0 && (
-                              <div className="space-y-1 pt-1 border-t border-[#f2ede6]">
-                                <span className="text-[#635950] font-medium text-[11px] block">Khoản thu khác:</span>
-                                {(show.incomes || []).map((inc) => (
-                                  <div key={inc.id} className="flex justify-between items-center text-[11px] text-[#137333]">
-                                    <span>+ {inc.title}</span>
-                                    <span className="font-semibold">+{formatCurrency(inc.amount)}</span>
-                                  </div>
-                                ))}
-                                <div className="flex justify-between items-center font-semibold text-[#1c1815] pt-0.5">
-                                  <span>Tổng doanh thu show:</span>
-                                  <span>{formatCurrency(totalRevenue)}</span>
-                                </div>
-                              </div>
-                            )}
-                            <div className="flex justify-between items-center text-[#4a4036] pt-1 border-t border-[#f2ede6]"><span className="text-[#635950] font-medium">Đã đặt cọc:</span><span className="font-bold text-[#1c1815]">{formatCurrency(deposit)}</span></div>
+                            <div className="flex justify-between items-center text-[#4a4036]"><span className="text-[#635950] font-medium">Đã đặt cọc:</span><span className="font-bold text-[#1c1815]">{formatCurrency(deposit)}</span></div>
                             <div className="flex justify-between items-center text-rose-700"><span className="text-[#635950] font-medium">Còn lại phải thu:</span><span className="font-bold">{formatCurrency(remaining)}</span></div>
                             <div className="flex justify-between items-center text-rose-700 pt-1 border-t border-[#e6dfd5]"><span className="text-[#635950] font-medium">Tổng chi phí (Lương thợ + phát sinh):</span><span className="font-bold">-{formatCurrency(totalExp)}</span></div>
                             <div className="flex justify-between items-center text-[#137333] pt-1 border-t border-[#e6dfd5] font-semibold"><span>Lợi nhuận ròng show:</span><span>{formatCurrency(profit)}</span></div>
@@ -2684,9 +2579,6 @@ export default function App() {
                     {!isNonCommercialPackage(confirmationModal.show.packageType) && (
                       <div className="bg-[#f7f4ef] p-3.5 rounded-xl border border-[#e6dfd5] space-y-1.5">
                         <div className="flex justify-between text-[#4a4036]"><span>Giá hợp đồng:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.totalAmount)}</strong></div>
-                        {calculateShowOtherIncomes(confirmationModal.show) > 0 && (
-                          <div className="flex justify-between text-[#137333]"><span>Khoản thu khác:</span><strong>+{formatCurrency(calculateShowOtherIncomes(confirmationModal.show))}</strong></div>
-                        )}
                         <div className="flex justify-between text-[#4a4036]"><span>Đã đặt cọc:</span><strong className="text-[#1c1815]">{formatCurrency(confirmationModal.show.depositAmount)}</strong></div>
                         <div className="flex justify-between text-rose-700 font-bold border-t border-[#e6dfd5] pt-1.5 text-sm">
                           <span>Còn lại cần thanh toán:</span>
@@ -2755,7 +2647,6 @@ export default function App() {
                   let text = '';
                   if (confirmationModal.type === 'client') {
                     const total = Number(show.totalAmount || 0);
-                    const otherInc = calculateShowOtherIncomes(show);
                     const deposit = Number(show.depositAmount || 0);
                     const remaining = total - deposit;
 
@@ -2769,11 +2660,8 @@ export default function App() {
                            `- Địa điểm: ${show.location || defaultLocationText}\n`;
                     
                     if (!isNonCommercialPackage(show.packageType)) {
-                      text += `- Giá hợp đồng: ${formatCurrency(total)}\n`;
-                      if (otherInc > 0) {
-                        text += `- Khoản thu khác: +${formatCurrency(otherInc)}\n`;
-                      }
-                      text += `- Đã đặt cọc: ${formatCurrency(deposit)}\n` +
+                      text += `- Giá hợp đồng: ${formatCurrency(total)}\n` +
+                              `- Đã đặt cọc: ${formatCurrency(deposit)}\n` +
                               `- Còn lại cần thanh toán: ${formatCurrency(remaining)}\n`;
                     }
 
