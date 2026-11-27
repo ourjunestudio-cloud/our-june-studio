@@ -625,7 +625,10 @@ export default function App() {
   const getNormalizeCrewList = (assignedStaff) => {
     if (!assignedStaff) return [];
     if (assignedStaff.crewList && Array.isArray(assignedStaff.crewList)) {
-      return assignedStaff.crewList;
+      return assignedStaff.crewList.map(item => ({
+        ...item,
+        note: item.note || ''
+      }));
     }
     return [];
   };
@@ -656,11 +659,6 @@ export default function App() {
     const staffPay = calculateShowStaffPay(show);
     const otherExpenses = calculateShowOtherExpenses(show);
     return staffPay + otherExpenses;
-  };
-
-  const calculateShowProfit = (show) => {
-    if (isNonCommercialPackage(show.packageType)) return 0;
-    return calculateShowTotalRevenue(show) - calculateShowTotalExpenses(show);
   };
 
   const formatCurrency = (val) => {
@@ -1088,6 +1086,13 @@ export default function App() {
       });
     }
 
+    const cleanedCrewList = isNonComm
+      ? []
+      : getNormalizeCrewList(showFormData.assignedStaff).map(m => ({
+          ...m,
+          note: (m.note || '').trim()
+        }));
+
     const payload = {
       ...showFormData,
       clientName: showFormData.packageType === 'Ngày nghỉ' ? (showFormData.clientName || 'Ngày nghỉ cá nhân') : showFormData.clientName,
@@ -1095,7 +1100,7 @@ export default function App() {
       depositAmount: isNonComm ? 0 : Number(showFormData.depositAmount || 0),
       revenues: isNonComm ? [] : finalRevenues,
       expenses: isNonComm ? [] : finalExpenses,
-      assignedStaff: isNonComm ? { crewList: [] } : showFormData.assignedStaff
+      assignedStaff: { crewList: cleanedCrewList }
     };
 
     try {
@@ -1698,15 +1703,22 @@ export default function App() {
                               const memberIdentifier = member.id || member.name;
                               const memberPay = Number(member.pay || 0);
                               return (
-                                <div key={memberIdentifier || i} className="flex items-center justify-between gap-1 bg-[#ffffff] p-1.5 rounded border border-[#e6dfd5]">
-                                  <div className="truncate pr-1">
-                                    <span className="font-bold text-[#1c1815]">{member.role}:</span> {member.name}
-                                    <span className="font-semibold text-rose-700 block">{formatCurrency(memberPay)}</span>
+                                <div key={memberIdentifier || i} className="bg-[#ffffff] p-1.5 rounded border border-[#e6dfd5] space-y-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="truncate pr-1">
+                                      <span className="font-bold text-[#1c1815]">{member.role}:</span> {member.name}
+                                      <span className="font-semibold text-rose-700 block">{formatCurrency(memberPay)}</span>
+                                    </div>
+                                    {memberPay > 0 && (
+                                      <div className="flex items-center gap-1 shrink-0 bg-[#f7f4ef] px-2 py-1 rounded border border-[#dcd2c4]">
+                                        <input type="checkbox" id={`list-paid-${show.id}-${memberIdentifier}`} checked={!!member.paid} onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)} className="w-3.5 h-3.5 rounded accent-[#137333] cursor-pointer" />
+                                        <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#1c1815] select-none">{member.paid ? <span className="text-[#137333]">Đã trả</span> : <span className="text-[#635950]">Chưa trả</span>}</label>
+                                      </div>
+                                    )}
                                   </div>
-                                  {memberPay > 0 && (
-                                    <div className="flex items-center gap-1 shrink-0 bg-[#f7f4ef] px-2 py-1 rounded border border-[#dcd2c4]">
-                                      <input type="checkbox" id={`list-paid-${show.id}-${memberIdentifier}`} checked={!!member.paid} onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)} className="w-3.5 h-3.5 rounded accent-[#137333] cursor-pointer" />
-                                      <label htmlFor={`list-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#1c1815] select-none">{member.paid ? <span className="text-[#137333]">Đã trả</span> : <span className="text-[#635950]">Chưa trả</span>}</label>
+                                  {show.packageType === 'Makeup' && member.note && (
+                                    <div className="text-[11px] text-[#4a4036] bg-[#f7f4ef] px-2 py-1 rounded border border-[#e6dfd5]">
+                                      📝 {member.note}
                                     </div>
                                   )}
                                 </div>
@@ -2399,7 +2411,7 @@ export default function App() {
                   <div className="space-y-2 border-t border-[#e6dfd5] pt-2.5">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-[10px] text-[#635950] uppercase tracking-wider">Phân công Ekip & Tiền công</span>
-                      <button type="button" onClick={() => { const currentCrew = showFormData.assignedStaff.crewList || []; setShowFormData({ ...showFormData, assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: 'Photo', pay: 0, paid: false }] } }); }} className="text-[10px] font-bold text-[#1c1815] bg-[#f2ede6] border border-[#dcd2c4] px-2 py-0.5 rounded">+ Thêm Nhân Sự</button>
+                      <button type="button" onClick={() => { const currentCrew = showFormData.assignedStaff.crewList || []; setShowFormData({ ...showFormData, assignedStaff: { crewList: [...currentCrew, { id: 'c-' + Date.now(), name: '', role: showFormData.packageType === 'Makeup' ? 'Makeup' : 'Photo', pay: 0, paid: false, note: '' }] } }); }} className="text-[10px] font-bold text-[#1c1815] bg-[#f2ede6] border border-[#dcd2c4] px-2 py-0.5 rounded">+ Thêm Nhân Sự</button>
                     </div>
 
                     <div className="space-y-1.5">
@@ -2419,6 +2431,21 @@ export default function App() {
                             <input type="number" placeholder="0 đ" value={member.pay || ''} onChange={(e) => { const updated = [...showFormData.assignedStaff.crewList]; updated[idx].pay = Number(e.target.value); setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } }); }} style={{ fontSize: '16px' }} className="flex-1 px-2.5 py-1 bg-[#ffffff] border border-[#dcd2c4] rounded font-bold text-rose-700" />
                             <button type="button" onClick={() => { const updated = showFormData.assignedStaff.crewList.filter((_, i) => i !== idx); setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } }); }} className="text-[#635950] hover:text-rose-700 p-1 bg-[#ffffff] border border-[#dcd2c4] rounded"><Icons.X className="w-3.5 h-3.5" /></button>
                           </div>
+
+                          {showFormData.packageType === 'Makeup' && (
+                            <input
+                              type="text"
+                              placeholder="Ghi chú riêng cho nhân sự này (VD: Makeup cô dâu, chú rể + mẹ...)"
+                              value={member.note || ''}
+                              onChange={(e) => {
+                                const updated = [...showFormData.assignedStaff.crewList];
+                                updated[idx] = { ...updated[idx], note: e.target.value };
+                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
+                              }}
+                              style={{ fontSize: '16px' }}
+                              className="w-full px-2.5 py-1 bg-[#ffffff] border border-[#dcd2c4] rounded font-medium text-[#1c1815]"
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2560,15 +2587,22 @@ export default function App() {
                                 const memberIdentifier = member.id || member.name;
                                 const memberPay = Number(member.pay || 0);
                                 return (
-                                  <div key={memberIdentifier || i} className="flex items-center justify-between gap-1 bg-[#f7f4ef] p-1.5 rounded border border-[#e6dfd5]">
-                                    <div className="truncate pr-1">
-                                      <span className="font-bold text-[#1c1815]">{member.role}:</span> {member.name}
-                                      <span className="font-semibold text-rose-700 block">{formatCurrency(memberPay)}</span>
+                                  <div key={memberIdentifier || i} className="bg-[#f7f4ef] p-1.5 rounded border border-[#e6dfd5] space-y-1">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <div className="truncate pr-1">
+                                        <span className="font-bold text-[#1c1815]">{member.role}:</span> {member.name}
+                                        <span className="font-semibold text-rose-700 block">{formatCurrency(memberPay)}</span>
+                                      </div>
+                                      {memberPay > 0 && (
+                                        <div className="flex items-center gap-1 shrink-0 bg-[#ffffff] px-2 py-1 rounded border border-[#dcd2c4]">
+                                          <input type="checkbox" id={`day-paid-${show.id}-${memberIdentifier}`} checked={!!member.paid} onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)} className="w-3.5 h-3.5 rounded accent-[#137333] cursor-pointer" />
+                                          <label htmlFor={`day-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#1c1815] select-none">{member.paid ? <span className="text-[#137333]">Đã trả</span> : <span className="text-[#635950]">Chưa trả</span>}</label>
+                                        </div>
+                                      )}
                                     </div>
-                                    {memberPay > 0 && (
-                                      <div className="flex items-center gap-1 shrink-0 bg-[#ffffff] px-2 py-1 rounded border border-[#dcd2c4]">
-                                        <input type="checkbox" id={`day-paid-${show.id}-${memberIdentifier}`} checked={!!member.paid} onChange={() => handleToggleStaffPaid(show.id, memberIdentifier, member.paid)} className="w-3.5 h-3.5 rounded accent-[#137333] cursor-pointer" />
-                                        <label htmlFor={`day-paid-${show.id}-${memberIdentifier}`} className="cursor-pointer text-[10px] font-semibold text-[#1c1815] select-none">{member.paid ? <span className="text-[#137333]">Đã trả</span> : <span className="text-[#635950]">Chưa trả</span>}</label>
+                                    {show.packageType === 'Makeup' && member.note && (
+                                      <div className="text-[11px] text-[#4a4036] bg-[#ffffff] px-2 py-1 rounded border border-[#e6dfd5]">
+                                        📝 {member.note}
                                       </div>
                                     )}
                                   </div>
@@ -2720,8 +2754,14 @@ export default function App() {
                     <div className="space-y-1.5 bg-[#f7f4ef] p-3 rounded-xl border border-[#e6dfd5]">
                       <span className="font-bold text-[11px] text-[#635950] uppercase tracking-wider block">Phân công Nhân sự Ekip:</span>
                       {getNormalizeCrewList(confirmationModal.show.assignedStaff).map((c, i) => (
-                        <div key={c.id || i} className="flex justify-between border-b border-[#e6dfd5] pb-1 last:border-none">
-                          <span className="text-[#635950]">👤 {c.role}:</span><strong className="text-[#1c1815]">{c.name}</strong>
+                        <div key={c.id || i} className="border-b border-[#e6dfd5] pb-1.5 last:border-none space-y-0.5">
+                          <div className="flex justify-between">
+                            <span className="text-[#635950]">👤 {c.role}:</span>
+                            <strong className="text-[#1c1815]">{c.name}</strong>
+                          </div>
+                          {confirmationModal.show.packageType === 'Makeup' && c.note && (
+                            <div className="text-[11px] text-[#4a4036] pl-2">↳ <em>{c.note}</em></div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2771,7 +2811,13 @@ export default function App() {
                             `Cảm ơn bạn đã đồng hành cùng ${msgBrandFooter}!`;
                   } else {
                     const crewText = getNormalizeCrewList(show.assignedStaff)
-                      .map(c => `+ ${c.role}: ${c.name}`)
+                      .map(c => {
+                        const baseLine = `+ ${c.role}: ${c.name}`;
+                        if (isMakeupShow && c.note) {
+                          return `${baseLine} (${c.note})`;
+                        }
+                        return baseLine;
+                      })
                       .join('\n');
 
                     text = `[${msgBrandHeader}] LỊCH PHÂN CÔNG EKIP\n` +
