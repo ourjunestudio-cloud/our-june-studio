@@ -1716,7 +1716,7 @@ export default function App() {
                                       </div>
                                     )}
                                   </div>
-                                  {show.packageType === 'Makeup' && member.note && (
+                                  {member.note && (
                                     <div className="text-[11px] text-[#4a4036] bg-[#f7f4ef] px-2 py-1 rounded border border-[#e6dfd5]">
                                       📝 {member.note}
                                     </div>
@@ -2432,20 +2432,18 @@ export default function App() {
                             <button type="button" onClick={() => { const updated = showFormData.assignedStaff.crewList.filter((_, i) => i !== idx); setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } }); }} className="text-[#635950] hover:text-rose-700 p-1 bg-[#ffffff] border border-[#dcd2c4] rounded"><Icons.X className="w-3.5 h-3.5" /></button>
                           </div>
 
-                          {showFormData.packageType === 'Makeup' && (
-                            <input
-                              type="text"
-                              placeholder="Ghi chú riêng cho nhân sự này (VD: Makeup cô dâu, chú rể + mẹ...)"
-                              value={member.note || ''}
-                              onChange={(e) => {
-                                const updated = [...showFormData.assignedStaff.crewList];
-                                updated[idx] = { ...updated[idx], note: e.target.value };
-                                setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
-                              }}
-                              style={{ fontSize: '16px' }}
-                              className="w-full px-2.5 py-1 bg-[#ffffff] border border-[#dcd2c4] rounded font-medium text-[#1c1815]"
-                            />
-                          )}
+                          <input
+                            type="text"
+                            placeholder="Ghi chú riêng cho nhân sự này (VD: Chụp gia đình, cầm đèn, dặn giờ...)"
+                            value={member.note || ''}
+                            onChange={(e) => {
+                              const updated = [...showFormData.assignedStaff.crewList];
+                              updated[idx] = { ...updated[idx], note: e.target.value };
+                              setShowFormData({ ...showFormData, assignedStaff: { crewList: updated } });
+                            }}
+                            style={{ fontSize: '16px' }}
+                            className="w-full px-2.5 py-1 bg-[#ffffff] border border-[#dcd2c4] rounded font-medium text-[#1c1815]"
+                          />
                         </div>
                       ))}
                     </div>
@@ -2600,7 +2598,7 @@ export default function App() {
                                         </div>
                                       )}
                                     </div>
-                                    {show.packageType === 'Makeup' && member.note && (
+                                    {member.note && (
                                       <div className="text-[11px] text-[#4a4036] bg-[#ffffff] px-2 py-1 rounded border border-[#e6dfd5]">
                                         📝 {member.note}
                                       </div>
@@ -2759,7 +2757,7 @@ export default function App() {
                             <span className="text-[#635950]">👤 {c.role}:</span>
                             <strong className="text-[#1c1815]">{c.name}</strong>
                           </div>
-                          {confirmationModal.show.packageType === 'Makeup' && c.note && (
+                          {c.note && (
                             <div className="text-[11px] text-[#4a4036] pl-2">↳ <em>{c.note}</em></div>
                           )}
                         </div>
@@ -2813,7 +2811,7 @@ export default function App() {
                     const crewText = getNormalizeCrewList(show.assignedStaff)
                       .map(c => {
                         const baseLine = `+ ${c.role}: ${c.name}`;
-                        if (isMakeupShow && c.note) {
+                        if (c.note) {
                           return `${baseLine} (${c.note})`;
                         }
                         return baseLine;
